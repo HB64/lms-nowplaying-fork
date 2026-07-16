@@ -1,8 +1,7 @@
 [versions]
 androidGradlePlugin = "8.1.2"
 androidLibrary = "8.1.1"
-kotlinAndroid = "1.9.10"
-androidxComposeCompiler = "1.5.3"
+kotlinAndroid = "2.2.21"
 coreKtx = "1.12.0"
 splashScreen = "1.0.1"
 activityCompose = "1.8.2"
@@ -18,9 +17,10 @@ material3-icon = "1.6.0-rc01"
 coil = "2.4.0"
 runtime-livedata = "1.5.4"
 volley ="1.2.1"
-kotlin-stdlib = "1.9.20"
+kotlin-stdlib = "2.2.21"
 coil-transformations = "2.0.2"
-jellyfin-sdk = "1.4.6"
+jellyfin-sdk = "1.8.11"
+slf4j = "2.0.18"
 secrets-gradle-plugin = "2.0.1"
 
 [libraries]
@@ -52,6 +52,7 @@ runtime-livedata = { module = "androidx.compose.runtime:runtime-livedata", versi
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin-stdlib" }
 
 jellyfin-sdk = { module = "org.jellyfin.sdk:jellyfin-core", version.ref = "jellyfin-sdk" }
+slf4j-nop = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }
 
 secrets-gradle-plugin = { module = "com.google.android.libraries.mapsplatform.secrets-gradle-plugin:secrets-gradle-plugin", version.ref = "secrets-gradle-plugin" }
 
@@ -69,4 +70,5 @@ coil = ["coil", "coil-compose", "coil-transformations"]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }
 android-library = { id = "com.android.library", version.ref = "androidLibrary" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlinAndroid" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlinAndroid" }
 secrets-gradle-plugin = { id = "com.google.android.libraries.mapsplatform.secrets-gradle-plugin"}

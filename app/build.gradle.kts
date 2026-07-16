@@ -5,6 +5,7 @@ val bundleID = "com.example.lmsnowplaying"
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
     id("com.google.android.libraries.mapsplatform.secrets-gradle-plugin")
 }
 
@@ -51,10 +52,6 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion = libs.versions.androidxComposeCompiler.get()
-    }
 }
 
 dependencies {
@@ -79,5 +76,6 @@ dependencies {
     implementation(libs.kotlin.stdlib)
 
     implementation(libs.jellyfin.sdk)
+    implementation(libs.slf4j.nop)
 
 }

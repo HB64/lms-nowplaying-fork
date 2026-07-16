@@ -55,7 +55,7 @@ object JellyfinApi {
                     username = USERNAME,
                     password = PASSWORD,
                 )
-                api.accessToken = authenticationResult.accessToken
+                api.update(accessToken = authenticationResult.accessToken)
                 APITOKEN = api.accessToken
             }catch (err: ApiClientException){
                 println("Something went wrong: ${err.message}")
@@ -77,7 +77,7 @@ object JellyfinApi {
                 val artistUUID = artistSearch.content.items?.get(0)?.id
                 imageUrl = artistUUID?.let { imageApi.getItemImageUrl(itemId = it, imageType = ImageType.BACKDROP) }
             }else{
-                val search = searchApi.get(searchTerm = artistName, includeItemTypes = setOf(BaseItemKind.MUSIC_ARTIST))
+                val search = searchApi.getSearchHints(searchTerm = artistName, includeItemTypes = setOf(BaseItemKind.MUSIC_ARTIST))
                 if(search.content.searchHints.isNotEmpty()){
                     var _index = 0
                     search.content.searchHints.forEachIndexed { index, e ->

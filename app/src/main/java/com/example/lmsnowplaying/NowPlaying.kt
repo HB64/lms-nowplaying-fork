@@ -165,7 +165,7 @@ fun PlayerScreen(){
 
             Row(modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 240.dp, end = 80.dp)) {
+                .padding(horizontal = 80.dp)) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier
                     .background(Color.Black)
                     .size(240.dp)){
