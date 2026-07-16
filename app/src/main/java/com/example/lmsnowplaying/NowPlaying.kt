@@ -1,5 +1,9 @@
 package com.example.lmsnowplaying
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -13,10 +17,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.material.icons.outlined.SkipPrevious
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -96,6 +100,8 @@ fun PlayerScreen(){
     var albumArtUrl by remember { mutableStateOf("")}
     var artistArtIsLms by remember { mutableStateOf(false) }
     var playing by remember { mutableStateOf(LMS.isPlaying) }
+    var elapsedTime by remember { mutableStateOf(LMS.elapsedTime) }
+    var trackDuration by remember { mutableStateOf(LMS.trackDuration) }
     var currentSong = ""
 
     LaunchedEffect(Unit){
@@ -104,6 +110,8 @@ fun PlayerScreen(){
                 CoroutineScope(Dispatchers.IO).launch{
                     LMS.status()
                     playing = LMS.isPlaying
+                    elapsedTime = LMS.elapsedTime
+                    trackDuration = LMS.trackDuration
                 }
 
                 CoroutineScope(Dispatchers.IO).launch {
@@ -157,51 +165,103 @@ fun PlayerScreen(){
 
             Row(modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 80.dp)) {
+                .padding(start = 240.dp, end = 80.dp)) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier
                     .background(Color.Black)
                     .size(240.dp)){
                     GetAlbumArt(albumArtUrl)
                 }
                 Spacer(modifier = Modifier.size(24.dp))
-                Column(verticalArrangement = Arrangement.Center) {
+                Column(verticalArrangement = Arrangement.Center, modifier = Modifier.weight(1f)) {
                     Spacer(modifier = Modifier.size(35.dp))
                     Text(songName, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1,
                         modifier = Modifier
-                            .width(500.dp)
+                            .fillMaxWidth()
                             .basicMarquee()
                     )
                     Spacer(modifier = Modifier.size(10.dp))
 
                     Text(artistName, color = Color.White, maxLines = 1,
                         modifier = Modifier
-                            .width(500.dp)
+                            .fillMaxWidth()
                             .basicMarquee()
                     )
+                    Spacer(modifier = Modifier.size(12.dp))
+
+                    val progress = if (trackDuration > 0.0) {
+                        (elapsedTime / trackDuration).toFloat().coerceIn(0f, 1f)
+                    } else 0f
+
+                    LinearProgressIndicator(
+                        progress = progress,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(CircleShape),
+                        color = Color.White,
+                        trackColor = Color.White.copy(alpha = 0.3f),
+                    )
+                    Spacer(modifier = Modifier.size(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(formatDuration(elapsedTime), color = Color.White, fontSize = 12.sp)
+                        Text(formatDuration(trackDuration), color = Color.White, fontSize = 12.sp)
+                    }
                 }
             }
             Spacer(modifier = Modifier.size(24.dp))
             Spacer(modifier = Modifier.size(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = {
-                    CoroutineScope(Dispatchers.IO).launch {
-                        LMS.prev()
-                    }
-                }) {
+                val prevInteractionSource = remember { MutableInteractionSource() }
+                val prevFocused by prevInteractionSource.collectIsFocusedAsState()
+                TextButton(
+                    onClick = {
+                        CoroutineScope(Dispatchers.IO).launch {
+                            LMS.prev()
+                        }
+                    },
+                    interactionSource = prevInteractionSource,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(if (prevFocused) Color.White.copy(alpha = 0.3f) else Color.Transparent)
+                ) {
                     Icon(modifier = Modifier.size(32.dp), tint = Color.White, imageVector = Icons.Outlined.SkipPrevious, contentDescription = "Previous")
                 }
                 Spacer(modifier = Modifier.size(32.dp))
-                TextButton(onClick = {
-
-                }) {
+                val playInteractionSource = remember { MutableInteractionSource() }
+                val playFocused by playInteractionSource.collectIsFocusedAsState()
+                TextButton(
+                    onClick = {
+                        if (LMS.playerMac != "00:00:00:00:00:00") {
+                            val newPlaying = !playing
+                            playing = newPlaying
+                            CoroutineScope(Dispatchers.IO).launch {
+                                LMS.playPause(newPlaying)
+                            }
+                        }
+                    },
+                    interactionSource = playInteractionSource,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(if (playFocused) Color.White.copy(alpha = 0.3f) else Color.Transparent)
+                ) {
                     PlayPauseButton(playing)
                 }
                 Spacer(modifier = Modifier.size(32.dp))
-                TextButton(onClick = {
-                    CoroutineScope(Dispatchers.IO).launch {
-                        LMS.next()
-                    }
-                }) {
+                val nextInteractionSource = remember { MutableInteractionSource() }
+                val nextFocused by nextInteractionSource.collectIsFocusedAsState()
+                TextButton(
+                    onClick = {
+                        CoroutineScope(Dispatchers.IO).launch {
+                            LMS.next()
+                        }
+                    },
+                    interactionSource = nextInteractionSource,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(if (nextFocused) Color.White.copy(alpha = 0.3f) else Color.Transparent)
+                ) {
                     Icon(modifier = Modifier.size(32.dp), tint = Color.White, imageVector = Icons.Outlined.SkipNext, contentDescription = "Next")
                 }
             }
@@ -214,6 +274,13 @@ fun PlayerScreen(){
 
 }
 
+
+fun formatDuration(seconds: Double): String {
+    val totalSeconds = seconds.toInt().coerceAtLeast(0)
+    val minutes = totalSeconds / 60
+    val secs = totalSeconds % 60
+    return "%d:%02d".format(minutes, secs)
+}
 
 @Composable
 fun GetAlbumArt(url: String){

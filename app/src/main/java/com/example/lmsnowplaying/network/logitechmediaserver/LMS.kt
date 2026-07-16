@@ -13,6 +13,12 @@ object LMS{
     var isPlaying: Boolean = false
         private set
 
+    var elapsedTime: Double = 0.0
+        private set
+
+    var trackDuration: Double = 0.0
+        private set
+
     var playerMac: String = "00:00:00:00:00:00"
         private set
 
@@ -102,12 +108,14 @@ object LMS{
     suspend fun status() {
         val reqString = "{\"method\": \"slim.request\", \"params\": [\"$playerMac\", [\"status\", \"-\",1]]}"
         val requestBody = reqString.toRequestBody("application/json".toMediaTypeOrNull())
-        val res = lmsApi.prev(requestBody)
+        val res = lmsApi.status(requestBody)
         val jsonData: String? = res.body()?.string()
         val obj = JSONObject(jsonData)
         val getObject = obj.getJSONObject("result")
         val mode = getObject.getString("mode")
         isPlaying = mode == "play"
+        elapsedTime = getObject.optDouble("time", 0.0).let { if (it.isNaN()) 0.0 else it }
+        trackDuration = getObject.optDouble("duration", 0.0).let { if (it.isNaN()) 0.0 else it }
     }
 
     suspend fun update(playerMAC: String): List<String> {
