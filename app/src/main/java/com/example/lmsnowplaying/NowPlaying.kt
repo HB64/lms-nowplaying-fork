@@ -39,7 +39,11 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -58,6 +62,7 @@ import com.example.lmsnowplaying.helpers.HandleButton
 import com.example.lmsnowplaying.network.logitechmediaserver.BasicAuthInterceptor
 import com.example.lmsnowplaying.network.jellyfin.JellyfinApi
 import com.example.lmsnowplaying.network.logitechmediaserver.LMS
+import com.example.lmsnowplaying.settings.AppConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -95,10 +100,12 @@ fun PlayerScreen(){
 
     var songName by remember { mutableStateOf("Song Name") }
     var artistName by remember { mutableStateOf("Artist") }
-    var artistArtUrl by remember { mutableStateOf("")}
+    var albumName by remember { mutableStateOf("") }
+    var albumYear by remember { mutableStateOf("") }
+    var jellyfinArtUrl by remember { mutableStateOf("")}
+    var lmsArtUrl by remember { mutableStateOf("")}
     var artistDefaultArtUrl by remember { mutableStateOf("")}
     var albumArtUrl by remember { mutableStateOf("")}
-    var artistArtIsLms by remember { mutableStateOf(false) }
     var playing by remember { mutableStateOf(LMS.isPlaying) }
     var elapsedTime by remember { mutableStateOf(LMS.elapsedTime) }
     var trackDuration by remember { mutableStateOf(LMS.trackDuration) }
@@ -120,34 +127,37 @@ fun PlayerScreen(){
                     val _artistName = result[1]
                     val _coverId = result[2]
                     val _portraitId = result[3]
+                    val _albumName = result.getOrElse(4) { "" }
+                    val _albumYear = result.getOrElse(5) { "" }
                     if(_songName == "" || _songName == currentSong) return@launch
                     currentSong = _songName
                     songName = _songName
+                    albumName = _albumName
+                    albumYear = _albumYear
                     artistName = _artistName
                     println("Refreshing")
                     if (_coverId == ""){
                         albumArtUrl = ""
                     }else{
-                        albumArtUrl = "${BuildConfig.LMS_URL}/music/$_coverId/cover.jpg"
-                        artistDefaultArtUrl = "${BuildConfig.LMS_URL}/music/$_coverId/cover.jpg"
+                        albumArtUrl = "${AppConfig.current.lmsUrl}/music/$_coverId/cover.jpg"
+                        artistDefaultArtUrl = "${AppConfig.current.lmsUrl}/music/$_coverId/cover.jpg"
 
-                        if (_portraitId != "") {
-                            artistArtUrl = "${BuildConfig.LMS_URL}/contributor/$_portraitId/image"
-                            artistArtIsLms = true
-                        } else {
-                            var tempName = _artistName
-                            tempName = tempName.replace(" ", "%20").replace("&", "%26")
+                        // Resolve both candidates. Lyrion's portraitId isn't a
+                        // reliable "has a real photo" signal (it can point at
+                        // Lyrion's own generic/no-photo artwork), so we always
+                        // also try Jellyfin; GetArtistArt tries Jellyfin first,
+                        // then Lyrion, then falls back to the blurred cover.
+                        lmsArtUrl = if (_portraitId != "") "${AppConfig.current.lmsUrl}/contributor/$_portraitId/image" else ""
 
-                            if(!_artistName.contains("[!\"#$%'()*+,-./:;\\\\<=>?@\\[\\]^_`{|}~]".toRegex())){
-                                artistArtUrl = "${BuildConfig.JELLYFIN_URL}/Artists/$tempName/Images/Backdrop/0"
-                            }else{
-                                val jfUrl = JellyfinApi.GetArtistUrl(_artistName)
-                                if (jfUrl != null) {
-                                    artistArtUrl = jfUrl
-                                }
-                            }
-                            artistArtIsLms = false
+                        var tempName = _artistName
+                        tempName = tempName.replace(" ", "%20").replace("&", "%26")
+                        jellyfinArtUrl = if(!_artistName.contains("[!\"#$%'()*+,-./:;\\\\<=>?@\\[\\]^_`{|}~]".toRegex())){
+                            "${AppConfig.current.jellyfinUrl}/Artists/$tempName/Images/Backdrop/0"
+                        }else{
+                            JellyfinApi.GetArtistUrl(_artistName) ?: ""
                         }
+
+                        println("DEBUG_ART artist=$_artistName lms=$lmsArtUrl jellyfin=$jellyfinArtUrl")
                     }
                 }
             }
@@ -160,7 +170,7 @@ fun PlayerScreen(){
         .fillMaxSize()) {
 
 
-        GetArtistArt(artistArtUrl, artistDefaultArtUrl, artistArtIsLms){
+        GetArtistArt(jellyfinArtUrl, lmsArtUrl, artistDefaultArtUrl){
 
 
             Row(modifier = Modifier
@@ -181,11 +191,36 @@ fun PlayerScreen(){
                     )
                     Spacer(modifier = Modifier.size(10.dp))
 
-                    Text(artistName, color = Color.White, maxLines = 1,
+                    val byLabel = stringResource(R.string.now_playing_by_label)
+                    val fromLabel = stringResource(R.string.now_playing_from_label)
+                    val mutedWhite = Color.White.copy(alpha = 0.65f)
+
+                    Text(
+                        buildAnnotatedString {
+                            withStyle(SpanStyle(color = mutedWhite)) { append("$byLabel ") }
+                            withStyle(SpanStyle(color = Color.White)) { append(artistName) }
+                        },
+                        maxLines = 1,
                         modifier = Modifier
                             .fillMaxWidth()
                             .basicMarquee()
                     )
+
+                    if (albumName.isNotBlank()) {
+                        Spacer(modifier = Modifier.size(4.dp))
+                        Text(
+                            buildAnnotatedString {
+                                withStyle(SpanStyle(color = mutedWhite)) { append("$fromLabel ") }
+                                withStyle(SpanStyle(color = Color.White)) {
+                                    append(if (albumYear.isNotBlank()) "$albumName ($albumYear)" else albumName)
+                                }
+                            },
+                            maxLines = 1,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .basicMarquee()
+                        )
+                    }
                     Spacer(modifier = Modifier.size(12.dp))
 
                     val progress = if (trackDuration > 0.0) {
@@ -291,7 +326,7 @@ fun GetAlbumArt(url: String){
     val imageLoaderLMS = ImageLoader.Builder(LocalContext.current)
         .okHttpClient {
             OkHttpClient.Builder()
-                .addInterceptor(BasicAuthInterceptor(BuildConfig.LMS_USERNAME,BuildConfig.LMS_PASSWORD))
+                .addInterceptor(BasicAuthInterceptor(AppConfig.current.lmsUsername, AppConfig.current.lmsPassword))
                 .build()
         }
         .logger(DebugLogger())
@@ -315,17 +350,19 @@ fun GetAlbumArt(url: String){
 
 @Composable
 fun GetArtistArt(
-    url: String,
+    jellyfinUrl: String,
+    lmsUrl: String,
     defaultUrl: String,
-    isLmsArt: Boolean,
     content: @Composable () -> Unit
 ) {
 
-    var _url by remember { mutableStateOf(url) }
+    var _jellyfinUrl by remember { mutableStateOf(jellyfinUrl) }
+    var _lmsUrl by remember { mutableStateOf(lmsUrl) }
     var _defaultUrl by remember { mutableStateOf(defaultUrl) }
     var _pn by remember { mutableStateOf(LMS.playerName) }
     _pn = LMS.playerName
-    _url = url
+    _jellyfinUrl = jellyfinUrl
+    _lmsUrl = lmsUrl
     _defaultUrl = defaultUrl
 
     val contrast = 0.40f
@@ -340,7 +377,7 @@ fun GetArtistArt(
     val imageLoaderLMS = ImageLoader.Builder(LocalContext.current)
         .okHttpClient {
             OkHttpClient.Builder()
-                .addInterceptor(BasicAuthInterceptor(BuildConfig.LMS_USERNAME,BuildConfig.LMS_PASSWORD))
+                .addInterceptor(BasicAuthInterceptor(AppConfig.current.lmsUsername, AppConfig.current.lmsPassword))
                 .build()
         }
         .logger(DebugLogger())
@@ -361,33 +398,49 @@ fun GetArtistArt(
         .logger(DebugLogger())
         .build()
 
-    val defaultPainter = rememberAsyncImagePainter(
-        imageLoader = imageLoaderLMS,
+    val hasJellyfinToken = !JellyfinApi.APITOKEN.isNullOrEmpty()
+
+    // Three-tier fallback: try Jellyfin first (Lyrion's own portraitId isn't a
+    // reliable "has a real photo" signal - it can point at Lyrion's own
+    // generic/no-photo artwork), then Lyrion's portrait, then finally the
+    // blurred album cover. Each tier is skipped automatically if its URL
+    // isn't available, and advances on a real load failure (via listener).
+    val jellyfinAttempt = _jellyfinUrl.takeIf { it.isNotEmpty() && hasJellyfinToken }
+    val lmsAttempt = _lmsUrl.takeIf { it.isNotEmpty() }
+
+    var tier by remember { mutableStateOf(0) }
+    LaunchedEffect(_jellyfinUrl, _lmsUrl) { tier = 0 }
+
+    val effectiveTier = when {
+        tier <= 0 && jellyfinAttempt != null -> 0
+        tier <= 1 && lmsAttempt != null -> 1
+        else -> 2
+    }
+
+    val effectiveUrl = when (effectiveTier) {
+        0 -> jellyfinAttempt!!
+        1 -> lmsAttempt!!
+        else -> _defaultUrl
+    }
+    val effectiveLoader = if (effectiveTier == 0) imageLoaderJellyfin else imageLoaderLMS
+    val useBlur = effectiveTier == 2
+
+    val painter = rememberAsyncImagePainter(
+        imageLoader = effectiveLoader,
         model = ImageRequest.Builder(LocalContext.current)
-            .data(_defaultUrl)
+            .data(effectiveUrl)
             .crossfade(500)
-            .transformations(BlurTransformation(LocalContext.current, 25f, 1f))
+            .apply {
+                if (useBlur) {
+                    transformations(BlurTransformation(LocalContext.current, 25f, 1f))
+                }
+            }
+            .listener(onError = { _, _ ->
+                if (effectiveTier < 2) tier = effectiveTier + 1
+            })
             .build(),
         contentScale = ContentScale.FillBounds,
     )
-
-    val hasJellyfinToken = !JellyfinApi.APITOKEN.isNullOrEmpty()
-    val canUseUrl = _url != "" && (isLmsArt || hasJellyfinToken)
-
-    val painter = if (canUseUrl) {
-        val loaderToUse = if (isLmsArt) imageLoaderLMS else imageLoaderJellyfin
-        rememberAsyncImagePainter(
-            imageLoader = loaderToUse,
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(_url)
-                .crossfade(500)
-                .build(),
-            contentScale = ContentScale.FillBounds,
-            error = defaultPainter
-        )
-    } else {
-        defaultPainter
-    }
 
 
     Column(modifier = Modifier

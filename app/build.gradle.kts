@@ -78,4 +78,6 @@ dependencies {
     implementation(libs.jellyfin.sdk)
     implementation(libs.slf4j.nop)
 
+    implementation(libs.datastore.preferences)
+
 }

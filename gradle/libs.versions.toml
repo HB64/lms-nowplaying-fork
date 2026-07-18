@@ -22,6 +22,7 @@ coil-transformations = "2.0.2"
 jellyfin-sdk = "1.8.11"
 slf4j = "2.0.18"
 secrets-gradle-plugin = "2.0.1"
+datastore = "1.1.1"
 
 [libraries]
 core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -55,6 +56,7 @@ jellyfin-sdk = { module = "org.jellyfin.sdk:jellyfin-core", version.ref = "jelly
 slf4j-nop = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }
 
 secrets-gradle-plugin = { module = "com.google.android.libraries.mapsplatform.secrets-gradle-plugin:secrets-gradle-plugin", version.ref = "secrets-gradle-plugin" }
+datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 
 
 [bundles]

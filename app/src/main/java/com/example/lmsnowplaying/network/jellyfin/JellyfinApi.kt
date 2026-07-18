@@ -1,7 +1,7 @@
 package com.example.lmsnowplaying.network.jellyfin
 
 import android.content.Context
-import com.example.lmsnowplaying.BuildConfig
+import com.example.lmsnowplaying.settings.AppConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -20,11 +20,9 @@ import org.jellyfin.sdk.model.api.ImageType
 
 object JellyfinApi {
 
-    private var BASEURL : String = BuildConfig.JELLYFIN_URL
-    private var USERNAME : String = BuildConfig.JELLYFIN_USERNAME
-    private var PASSWORD : String = BuildConfig.JELLYFIN_PASSWORD
-    private var APIKEY : String = BuildConfig.JELLYFIN_API_KEY
-
+    // Read fresh from AppConfig.current on every call rather than caching,
+    // so re-saving settings later (see NavState.showSettings) actually takes
+    // effect without an app restart.
 
     private lateinit var ApiClient: ApiClient
         private set
@@ -33,7 +31,8 @@ object JellyfinApi {
 
     fun SetAPIToken(_context: Context){
 
-        if(APIKEY.isNullOrEmpty()) return
+        val settings = AppConfig.current
+        if(settings.jellyfinApiKey.isBlank()) return
 
         val jellyfin = createJellyfin{
             clientInfo = ClientInfo("LMS Jellyfin", "0.0.0")
@@ -41,8 +40,8 @@ object JellyfinApi {
         }
 
         val api = jellyfin.createApi(
-            baseUrl = BASEURL,
-            accessToken = APIKEY
+            baseUrl = settings.jellyfinUrl,
+            accessToken = settings.jellyfinApiKey
         )
 
         ApiClient = api
@@ -52,8 +51,8 @@ object JellyfinApi {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val authenticationResult by userApi.authenticateUserByName(
-                    username = USERNAME,
-                    password = PASSWORD,
+                    username = settings.jellyfinUsername,
+                    password = settings.jellyfinPassword,
                 )
                 api.update(accessToken = authenticationResult.accessToken)
                 APITOKEN = api.accessToken

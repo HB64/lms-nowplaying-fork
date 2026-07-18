@@ -32,4 +32,7 @@ interface ApiService {
     @POST("jsonrpc.js")
     suspend fun status(@Body requestBody: RequestBody): Response<ResponseBody>
 
+    @POST("jsonrpc.js")
+    suspend fun power(@Body requestBody: RequestBody): Response<ResponseBody>
+
 }

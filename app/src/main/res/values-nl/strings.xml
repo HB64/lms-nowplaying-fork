@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">LMS Now Playing</string>
+
+    <string name="settings_title">Lyrion Now Playing — instellingen</string>
+    <string name="settings_lms_section">Lyrion / Logitech Media Server</string>
+    <string name="settings_lms_url_label">Server IP/URL (bv. 192.168.1.10:9000)</string>
+    <string name="settings_lms_username_label">Gebruikersnaam (optioneel)</string>
+    <string name="settings_lms_password_label">Wachtwoord (optioneel)</string>
+    <string name="settings_jellyfin_section">Jellyfin (optioneel, voor artiest-achtergronden)</string>
+    <string name="settings_jellyfin_url_label">Server IP/URL (bv. 192.168.1.10:8096)</string>
+    <string name="settings_jellyfin_username_label">Gebruikersnaam</string>
+    <string name="settings_jellyfin_password_label">Wachtwoord</string>
+    <string name="settings_jellyfin_apikey_label">API key</string>
+    <string name="settings_save">Opslaan</string>
+    <string name="settings_save_and_start">Opslaan en starten</string>
+    <string name="settings_cancel">Annuleren</string>
+    <string name="menu_settings">Instellingen</string>
+    <string name="now_playing_by_label">door</string>
+    <string name="now_playing_from_label">van</string>
+</resources>
