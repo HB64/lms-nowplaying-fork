@@ -35,4 +35,28 @@ interface ApiService {
     @POST("jsonrpc.js")
     suspend fun power(@Body requestBody: RequestBody): Response<ResponseBody>
 
+    @POST("jsonrpc.js")
+    suspend fun queue(@Body requestBody: RequestBody): Response<ResponseBody>
+
+    @POST("jsonrpc.js")
+    suspend fun playlistIndex(@Body requestBody: RequestBody): Response<ResponseBody>
+
+    @POST("jsonrpc.js")
+    suspend fun playlistDelete(@Body requestBody: RequestBody): Response<ResponseBody>
+
+    @POST("jsonrpc.js")
+    suspend fun playlistControl(@Body requestBody: RequestBody): Response<ResponseBody>
+
+    @POST("jsonrpc.js")
+    suspend fun browseArtists(@Body requestBody: RequestBody): Response<ResponseBody>
+
+    @POST("jsonrpc.js")
+    suspend fun browseAlbums(@Body requestBody: RequestBody): Response<ResponseBody>
+
+    @POST("jsonrpc.js")
+    suspend fun browseTracks(@Body requestBody: RequestBody): Response<ResponseBody>
+
+    @POST("jsonrpc.js")
+    suspend fun randomPlay(@Body requestBody: RequestBody): Response<ResponseBody>
+
 }

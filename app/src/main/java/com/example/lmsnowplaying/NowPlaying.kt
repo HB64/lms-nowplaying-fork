@@ -32,6 +32,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.paint
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
@@ -58,11 +60,13 @@ import coil.util.DebugLogger
 import com.commit451.coiltransformations.BlurTransformation
 import com.example.lmsnowplaying.composable.PlayPauseButton
 import com.example.lmsnowplaying.composable.PlayerSelector
+import com.example.lmsnowplaying.composable.QueueButton
 import com.example.lmsnowplaying.helpers.HandleButton
 import com.example.lmsnowplaying.network.logitechmediaserver.BasicAuthInterceptor
 import com.example.lmsnowplaying.network.jellyfin.JellyfinApi
 import com.example.lmsnowplaying.network.logitechmediaserver.LMS
 import com.example.lmsnowplaying.settings.AppConfig
+import com.example.lmsnowplaying.settings.NavState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -111,6 +115,10 @@ fun PlayerScreen(){
     var trackDuration by remember { mutableStateOf(LMS.trackDuration) }
     var currentSong = ""
 
+    var nextTitle by remember { mutableStateOf("") }
+    var nextArtist by remember { mutableStateOf("") }
+    var nextCoverUrl by remember { mutableStateOf("") }
+
     LaunchedEffect(Unit){
         while (true){
             if (LMS.playerMac != "00:00:00:00:00:00"){
@@ -158,6 +166,22 @@ fun PlayerScreen(){
                         }
 
                         println("DEBUG_ART artist=$_artistName lms=$lmsArtUrl jellyfin=$jellyfinArtUrl")
+                    }
+                }
+
+                CoroutineScope(Dispatchers.IO).launch {
+                    val upcoming = LMS.getUpcoming(LMS.playerMac, 2)
+                    val next = upcoming.getOrNull(1)
+                    if (next != null) {
+                        nextTitle = next.title
+                        nextArtist = next.artist
+                        nextCoverUrl = if (next.coverId.isNotEmpty())
+                            "${AppConfig.current.lmsUrl}/music/${next.coverId}/cover.jpg"
+                        else ""
+                    } else {
+                        nextTitle = ""
+                        nextArtist = ""
+                        nextCoverUrl = ""
                     }
                 }
             }
@@ -243,8 +267,42 @@ fun PlayerScreen(){
                         Text(formatDuration(elapsedTime), color = Color.White, fontSize = 12.sp)
                         Text(formatDuration(trackDuration), color = Color.White, fontSize = 12.sp)
                     }
+
+                    if (nextTitle.isNotBlank()) {
+                        Spacer(modifier = Modifier.size(16.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier
+                                .background(Color.Black)
+                                .size(48.dp)) {
+                                GetAlbumArt(nextCoverUrl)
+                            }
+                            Spacer(modifier = Modifier.size(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    stringResource(R.string.now_playing_next_label),
+                                    color = Color.White.copy(alpha = 0.65f),
+                                    fontSize = 12.sp,
+                                )
+                                Text(
+                                    if (nextArtist.isNotBlank()) "$nextTitle – $nextArtist" else nextTitle,
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    maxLines = 1,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .basicMarquee()
+                                )
+                            }
+                            Spacer(modifier = Modifier.size(8.dp))
+                            QueueButton()
+                        }
+                    }
                 }
             }
+
             Spacer(modifier = Modifier.size(24.dp))
             Spacer(modifier = Modifier.size(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -266,18 +324,38 @@ fun PlayerScreen(){
                 Spacer(modifier = Modifier.size(32.dp))
                 val playInteractionSource = remember { MutableInteractionSource() }
                 val playFocused by playInteractionSource.collectIsFocusedAsState()
+                val playFocusRequester = remember { FocusRequester() }
+
+                // If a default player was already auto-selected on start,
+                // there's nothing to set up via the options menu - so put
+                // initial D-pad focus straight on the play button instead.
+                LaunchedEffect(Unit) {
+                    if (NavState.focusPlayButtonOnStart) {
+                        playFocusRequester.requestFocus()
+                    }
+                }
+
                 TextButton(
                     onClick = {
                         if (LMS.playerMac != "00:00:00:00:00:00") {
                             val newPlaying = !playing
                             playing = newPlaying
                             CoroutineScope(Dispatchers.IO).launch {
+                                // Explicitly wake the player before resuming
+                                // playback - some players (e.g. Squeezelite)
+                                // ignore "play" while still flagged powered
+                                // off, unlike hardware players that tend to
+                                // wake implicitly on a play command.
+                                if (newPlaying) {
+                                    LMS.power(true)
+                                }
                                 LMS.playPause(newPlaying)
                             }
                         }
                     },
                     interactionSource = playInteractionSource,
                     modifier = Modifier
+                        .focusRequester(playFocusRequester)
                         .clip(CircleShape)
                         .background(if (playFocused) Color.White.copy(alpha = 0.3f) else Color.Transparent)
                 ) {

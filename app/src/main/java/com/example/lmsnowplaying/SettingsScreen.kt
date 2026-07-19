@@ -148,6 +148,11 @@ fun SettingsScreen(
                         jellyfinUsername = jellyfinUsername.trim(),
                         jellyfinPassword = jellyfinPassword,
                         jellyfinApiKey = jellyfinApiKey.trim(),
+                        // Not editable on this screen - carry over so saving
+                        // settings here doesn't silently wipe the remembered
+                        // default player.
+                        defaultPlayerName = initial.defaultPlayerName,
+                        defaultPlayerMac = initial.defaultPlayerMac,
                     )
                     scope.launch {
                         withContext(Dispatchers.IO) {

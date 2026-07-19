@@ -17,4 +17,8 @@
     <string name="menu_settings">Instellingen</string>
     <string name="now_playing_by_label">door</string>
     <string name="now_playing_from_label">van</string>
+    <string name="now_playing_next_label">Volgende</string>
+    <string name="plugin_tip_title">Tip: haal meer uit de vervang-knop</string>
+    <string name="plugin_tip_body">De knop om de volgende track te vervangen werkt meteen, maar kiest slimmer als je Lyrion-server de plugins SugarCube en/of Don\'t Stop The Music heeft. Zonder die plugins werkt het gewoon met een willekeurige track uit hetzelfde genre of dezelfde artiest.\n\nGebruik je Squeezelite als speler? Deze app is daar een prima companion voor: hij bedient het afspelen terwijl Squeezelite rustig op de achtergrond draait.</string>
+    <string name="plugin_tip_ok">Begrepen</string>
 </resources>

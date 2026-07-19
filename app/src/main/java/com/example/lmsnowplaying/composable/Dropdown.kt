@@ -43,7 +43,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.lmsnowplaying.R
 import com.example.lmsnowplaying.network.logitechmediaserver.LMS
+import com.example.lmsnowplaying.settings.AppConfig
 import com.example.lmsnowplaying.settings.NavState
+import com.example.lmsnowplaying.settings.SettingsRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @Preview
 @Composable
@@ -71,9 +76,13 @@ fun MyUI() {
 
         // Give this button focus as soon as the screen appears, so the
         // remote is immediately ready to open the settings/options menu
-        // without needing to navigate there first.
+        // without needing to navigate there first - unless a default
+        // player was already auto-selected, in which case the play button
+        // takes initial focus instead (see MainActivity/NavState).
         LaunchedEffect(Unit) {
-            menuButtonFocusRequester.requestFocus()
+            if (!NavState.focusPlayButtonOnStart) {
+                menuButtonFocusRequester.requestFocus()
+            }
         }
 
         IconButton(
@@ -106,6 +115,11 @@ fun MyUI() {
             var highlightedIndex by remember { mutableStateOf(0) }
             val totalItems = data.size + 1 // +1 for the "Settings" entry
             val menuFocusRequester = remember { FocusRequester() }
+
+            // Which player (by mac) is remembered as the default, shown as a
+            // checkbox next to each row. Toggled with left/right so it
+            // doesn't collide with up/down navigation or the connect action.
+            var defaultMac by remember { mutableStateOf(AppConfig.current.defaultPlayerMac) }
 
             LaunchedEffect(Unit) {
                 menuFocusRequester.requestFocus()
@@ -142,6 +156,24 @@ fun MyUI() {
                                 expanded = false
                                 true
                             }
+                            Key.DirectionLeft, Key.DirectionRight -> {
+                                if (highlightedIndex < data.size) {
+                                    val itemValue = data[highlightedIndex]
+                                    val newDefaultMac = if (defaultMac == itemValue.second) "" else itemValue.second
+                                    val newDefaultName = if (newDefaultMac.isEmpty()) "" else itemValue.first
+                                    defaultMac = newDefaultMac
+                                    val toastMsg = if (newDefaultMac.isEmpty())
+                                        " Default player cleared"
+                                    else
+                                        " Default player: ${itemValue.first}"
+                                    Toast.makeText(contextForToast, toastMsg, Toast.LENGTH_SHORT).show()
+                                    CoroutineScope(Dispatchers.IO).launch {
+                                        SettingsRepository.saveDefaultPlayer(contextForToast, newDefaultName, newDefaultMac)
+                                        AppConfig.load(contextForToast)
+                                    }
+                                }
+                                true
+                            }
                             Key.Back -> {
                                 expanded = false
                                 true
@@ -151,8 +183,9 @@ fun MyUI() {
                     }
             ) {
                 data.forEachIndexed { itemIndex, itemValue ->
+                    val isDefault = defaultMac == itemValue.second
                     Text(
-                        text = itemValue.first,
+                        text = (if (isDefault) "☑ " else "☐ ") + itemValue.first,
                         color = Color.White,
                         modifier = Modifier
                             .fillMaxWidth()

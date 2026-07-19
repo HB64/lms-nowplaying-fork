@@ -34,6 +34,8 @@ object AppConfig {
             jellyfinUsername = stored.jellyfinUsername.ifBlank { BuildConfig.JELLYFIN_USERNAME ?: "" },
             jellyfinPassword = stored.jellyfinPassword.ifBlank { BuildConfig.JELLYFIN_PASSWORD ?: "" },
             jellyfinApiKey = stored.jellyfinApiKey.ifBlank { BuildConfig.JELLYFIN_API_KEY ?: "" },
+            defaultPlayerName = stored.defaultPlayerName,
+            defaultPlayerMac = stored.defaultPlayerMac,
         )
         return current
     }

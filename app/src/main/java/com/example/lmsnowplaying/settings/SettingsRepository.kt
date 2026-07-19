@@ -1,6 +1,7 @@
 package com.example.lmsnowplaying.settings
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -24,6 +25,8 @@ object SettingsRepository {
     private val JELLYFIN_USERNAME = stringPreferencesKey("jellyfin_username")
     private val JELLYFIN_PASSWORD = stringPreferencesKey("jellyfin_password")
     private val JELLYFIN_API_KEY = stringPreferencesKey("jellyfin_api_key")
+    private val DEFAULT_PLAYER_NAME = stringPreferencesKey("default_player_name")
+    private val DEFAULT_PLAYER_MAC = stringPreferencesKey("default_player_mac")
 
     data class Settings(
         val lmsUrl: String = "",
@@ -33,6 +36,11 @@ object SettingsRepository {
         val jellyfinUsername: String = "",
         val jellyfinPassword: String = "",
         val jellyfinApiKey: String = "",
+        // Remembers the last-selected player so it's auto-selected again on
+        // the next app start, instead of requiring a manual pick every time
+        // (useful when the app is launched fresh via e.g. a Harmony activity).
+        val defaultPlayerName: String = "",
+        val defaultPlayerMac: String = "",
     )
 
     fun flow(context: Context): Flow<Settings> =
@@ -45,6 +53,8 @@ object SettingsRepository {
                 jellyfinUsername = prefs[JELLYFIN_USERNAME] ?: "",
                 jellyfinPassword = prefs[JELLYFIN_PASSWORD] ?: "",
                 jellyfinApiKey = prefs[JELLYFIN_API_KEY] ?: "",
+                defaultPlayerName = prefs[DEFAULT_PLAYER_NAME] ?: "",
+                defaultPlayerMac = prefs[DEFAULT_PLAYER_MAC] ?: "",
             )
         }
 
@@ -61,6 +71,28 @@ object SettingsRepository {
             prefs[JELLYFIN_USERNAME] = settings.jellyfinUsername
             prefs[JELLYFIN_PASSWORD] = settings.jellyfinPassword
             prefs[JELLYFIN_API_KEY] = settings.jellyfinApiKey
+            prefs[DEFAULT_PLAYER_NAME] = settings.defaultPlayerName
+            prefs[DEFAULT_PLAYER_MAC] = settings.defaultPlayerMac
         }
+    }
+
+    // Updates just the remembered default player, without touching (or
+    // needing to know) the rest of the settings.
+    suspend fun saveDefaultPlayer(context: Context, name: String, mac: String) {
+        context.dataStore.edit { prefs ->
+            prefs[DEFAULT_PLAYER_NAME] = name
+            prefs[DEFAULT_PLAYER_MAC] = mac
+        }
+    }
+
+    // One-time "this app works best with SugarCube + Don't Stop The Music"
+    // tip, shown once on first launch and then never again.
+    private val PLUGIN_TIP_SHOWN = booleanPreferencesKey("plugin_tip_shown")
+
+    suspend fun hasShownPluginTip(context: Context): Boolean =
+        context.dataStore.data.map { it[PLUGIN_TIP_SHOWN] ?: false }.first()
+
+    suspend fun markPluginTipShown(context: Context) {
+        context.dataStore.edit { prefs -> prefs[PLUGIN_TIP_SHOWN] = true }
     }
 }
