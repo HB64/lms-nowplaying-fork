@@ -3,13 +3,9 @@ Android TV app to show the current playing song from your Logitech Media Server 
 
 If you have a Jellyfin instance, you can provide the credentials to grab the backdrop image. Otherwise it defaults to showing the album art.
 
-| ![space-1.jpg](https://github.com/TroyFernandes/LMS-NowPlaying/blob/main/sample-images/nowplaying-wjellyfin.png?raw=true) | 
+| ![Now Playing screenshot](sample-images/nowplaying.png) | 
 |:--:| 
-| *w/ Jellyfin* |
-
-| ![space-1.jpg](https://github.com/TroyFernandes/LMS-NowPlaying/blob/main/sample-images/nowplaying-nojellyfin.png?raw=true) | 
-|:--:| 
-| *w/o Jellyfin* |
+| *Now Playing screen (always falls back to Lyrion's own album art if Jellyfin isn't configured)* |
 
 ## Features
 
@@ -22,7 +18,7 @@ If you have a Jellyfin instance, you can provide the credentials to grab the bac
 
 # Installing without building
 
-Prebuilt APKs are published on the [Releases page](../../releases) — download the `.apk` from the latest release and install it via `adb install` or a file manager/sideload app on your Android TV device. After install, fill in your Lyrion (and optional Jellyfin) server details on the in-app settings screen — no `local.properties` or rebuild required.
+Prebuilt APKs are published on the [Releases page](https://github.com/HB64/lms-nowplaying-fork/releases) — download the `.apk` from the latest release and install it via `adb install` or a file manager/sideload app on your Android TV device. After install, fill in your Lyrion (and optional Jellyfin) server details on the in-app settings screen — no `local.properties` or rebuild required.
 
 # Building the Source
 *Project currently builds with Kotlin 2.2.21, AGP 8.1.2, and Jellyfin SDK 1.8.11 (see `gradle/libs.versions.toml`).*
