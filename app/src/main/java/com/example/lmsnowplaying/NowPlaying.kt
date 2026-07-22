@@ -154,7 +154,15 @@ fun PlayerScreen(){
                     albumYear = _albumYear
                     artistName = _artistName
                     println("Refreshing")
-                    if (_coverId == "" && _artworkUrl == ""){
+                    // Real Lyrion coverids are hex hashes (e.g. "795fbdde").
+                    // For internet radio / streaming-plugin tracks, Lyrion
+                    // sometimes sends a synthetic numeric coverid that's just
+                    // the same (negative) value as the track id, with no
+                    // actual cover behind it - the real art for those comes
+                    // via artwork_url instead. Treat a purely-numeric coverid
+                    // as "no real coverid" so we use artwork_url for it.
+                    val hasRealCoverId = _coverId != "" && _coverId.toLongOrNull() == null
+                    if (!hasRealCoverId && _artworkUrl == ""){
                         // No cover for this track at all - clear every art
                         // field, not just the album art, otherwise the
                         // backdrop keeps showing whatever the previous
@@ -163,7 +171,7 @@ fun PlayerScreen(){
                         lmsArtUrl = ""
                         artistDefaultArtUrl = ""
                         jellyfinArtUrl = ""
-                    }else if (_coverId != "") {
+                    }else if (hasRealCoverId) {
                         albumArtUrl = "${AppConfig.current.lmsUrl}/music/$_coverId/cover.jpg"
                         artistDefaultArtUrl = "${AppConfig.current.lmsUrl}/music/$_coverId/cover.jpg"
 
@@ -198,8 +206,17 @@ fun PlayerScreen(){
                         // plugin, etc.) with no local coverid, but the server
                         // gave us a direct artwork_url for it - use that for
                         // both the small cover and the backdrop fallback.
-                        albumArtUrl = _artworkUrl
-                        artistDefaultArtUrl = _artworkUrl
+                        // Lyrion sends this as a path relative to its own
+                        // server (e.g. "/imageproxy/https%3A%2F%2F...") rather
+                        // than a full URL, so it needs the LMS base URL
+                        // prepended before it's usable.
+                        val resolvedArtworkUrl = if (_artworkUrl.startsWith("http")) {
+                            _artworkUrl
+                        } else {
+                            "${AppConfig.current.lmsUrl}$_artworkUrl"
+                        }
+                        albumArtUrl = resolvedArtworkUrl
+                        artistDefaultArtUrl = resolvedArtworkUrl
                         lmsArtUrl = ""
 
                         var tempName = _artistName
