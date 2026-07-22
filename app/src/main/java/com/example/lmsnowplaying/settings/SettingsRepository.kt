@@ -27,6 +27,13 @@ object SettingsRepository {
     private val JELLYFIN_API_KEY = stringPreferencesKey("jellyfin_api_key")
     private val DEFAULT_PLAYER_NAME = stringPreferencesKey("default_player_name")
     private val DEFAULT_PLAYER_MAC = stringPreferencesKey("default_player_mac")
+    private val BACKGROUND_STYLE = stringPreferencesKey("background_style")
+
+    // Valid values for Settings.backgroundStyle.
+    const val BACKGROUND_STYLE_ARTIST = "artist"
+    const val BACKGROUND_STYLE_ALBUM = "album"
+    const val BACKGROUND_STYLE_STARFIELD = "starfield"
+    const val BACKGROUND_STYLE_ARTIST_GRAYSCALE = "artist_grayscale"
 
     data class Settings(
         val lmsUrl: String = "",
@@ -41,6 +48,13 @@ object SettingsRepository {
         // (useful when the app is launched fresh via e.g. a Harmony activity).
         val defaultPlayerName: String = "",
         val defaultPlayerMac: String = "",
+        // Whether the Now Playing backdrop should try an artist photo
+        // (BACKGROUND_STYLE_ARTIST, the default) or always just use the
+        // blurred album cover (BACKGROUND_STYLE_ALBUM) - some artist photos
+        // are ugly or, for multi-artist tracks, end up being the album cover
+        // anyway (Lyrion/Jellyfin fall back to that when no real photo is
+        // found), which can get repetitive.
+        val backgroundStyle: String = BACKGROUND_STYLE_ARTIST,
     )
 
     fun flow(context: Context): Flow<Settings> =
@@ -55,6 +69,7 @@ object SettingsRepository {
                 jellyfinApiKey = prefs[JELLYFIN_API_KEY] ?: "",
                 defaultPlayerName = prefs[DEFAULT_PLAYER_NAME] ?: "",
                 defaultPlayerMac = prefs[DEFAULT_PLAYER_MAC] ?: "",
+                backgroundStyle = prefs[BACKGROUND_STYLE] ?: BACKGROUND_STYLE_ARTIST,
             )
         }
 
@@ -73,6 +88,7 @@ object SettingsRepository {
             prefs[JELLYFIN_API_KEY] = settings.jellyfinApiKey
             prefs[DEFAULT_PLAYER_NAME] = settings.defaultPlayerName
             prefs[DEFAULT_PLAYER_MAC] = settings.defaultPlayerMac
+            prefs[BACKGROUND_STYLE] = settings.backgroundStyle
         }
     }
 

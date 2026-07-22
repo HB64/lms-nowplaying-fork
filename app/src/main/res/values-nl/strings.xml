@@ -11,10 +11,16 @@
     <string name="settings_jellyfin_username_label">Gebruikersnaam</string>
     <string name="settings_jellyfin_password_label">Wachtwoord</string>
     <string name="settings_jellyfin_apikey_label">API key</string>
+    <string name="settings_background_section">Achtergrond bij Now Playing</string>
+    <string name="settings_background_artist">Artiestenfoto</string>
+    <string name="settings_background_album">Albumhoes (geblurd)</string>
+    <string name="settings_background_starfield">Sterrenhemel</string>
+    <string name="settings_background_artist_grayscale">Artiestenfoto (zwart-wit)</string>
     <string name="settings_save">Opslaan</string>
     <string name="settings_save_and_start">Opslaan en starten</string>
     <string name="settings_cancel">Annuleren</string>
     <string name="menu_settings">Instellingen</string>
+    <string name="menu_background_prefix">Achtergrond</string>
     <string name="now_playing_by_label">door</string>
     <string name="now_playing_from_label">van</string>
     <string name="now_playing_next_label">Volgende</string>

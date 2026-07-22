@@ -113,13 +113,21 @@ fun MyUI() {
         // mirroring how the media-key handling already works reliably.
         if (expanded) {
             var highlightedIndex by remember { mutableStateOf(0) }
-            val totalItems = data.size + 1 // +1 for the "Settings" entry
+            // +1 for the background-style row, +1 for the "Settings" entry.
+            val totalItems = data.size + 2
+            val backgroundRowIndex = data.size
+            val settingsRowIndex = data.size + 1
             val menuFocusRequester = remember { FocusRequester() }
 
             // Which player (by mac) is remembered as the default, shown as a
             // checkbox next to each row. Toggled with left/right so it
             // doesn't collide with up/down navigation or the connect action.
             var defaultMac by remember { mutableStateOf(AppConfig.current.defaultPlayerMac) }
+
+            // Quick toggle for the Now Playing backdrop style, so switching
+            // it doesn't require going all the way into the full Settings
+            // screen (which is a real chore to navigate with a D-pad).
+            var backgroundStyle by remember { mutableStateOf(AppConfig.current.backgroundStyle) }
 
             LaunchedEffect(Unit) {
                 menuFocusRequester.requestFocus()
@@ -150,10 +158,26 @@ fun MyUI() {
                                     val itemValue = data[highlightedIndex]
                                     Toast.makeText(contextForToast, " Connected to: ${itemValue.first}", Toast.LENGTH_SHORT).show()
                                     LMS.setPlayer(itemValue.first, itemValue.second)
+                                    expanded = false
+                                } else if (highlightedIndex == backgroundRowIndex) {
+                                    val newStyle = when (backgroundStyle) {
+                                        SettingsRepository.BACKGROUND_STYLE_ARTIST -> SettingsRepository.BACKGROUND_STYLE_ARTIST_GRAYSCALE
+                                        SettingsRepository.BACKGROUND_STYLE_ARTIST_GRAYSCALE -> SettingsRepository.BACKGROUND_STYLE_ALBUM
+                                        SettingsRepository.BACKGROUND_STYLE_ALBUM -> SettingsRepository.BACKGROUND_STYLE_STARFIELD
+                                        else -> SettingsRepository.BACKGROUND_STYLE_ARTIST
+                                    }
+                                    backgroundStyle = newStyle
+                                    CoroutineScope(Dispatchers.IO).launch {
+                                        val current = SettingsRepository.get(contextForToast)
+                                        SettingsRepository.save(contextForToast, current.copy(backgroundStyle = newStyle))
+                                        AppConfig.load(contextForToast)
+                                    }
+                                    // Leave the menu open - this is a quick toggle
+                                    // people may want to flip back and forth on.
                                 } else {
                                     NavState.showSettings = true
+                                    expanded = false
                                 }
-                                expanded = false
                                 true
                             }
                             Key.DirectionLeft, Key.DirectionRight -> {
@@ -194,12 +218,27 @@ fun MyUI() {
                     )
                 }
 
+                val backgroundLabel = when (backgroundStyle) {
+                    SettingsRepository.BACKGROUND_STYLE_ALBUM -> stringResource(R.string.settings_background_album)
+                    SettingsRepository.BACKGROUND_STYLE_STARFIELD -> stringResource(R.string.settings_background_starfield)
+                    SettingsRepository.BACKGROUND_STYLE_ARTIST_GRAYSCALE -> stringResource(R.string.settings_background_artist_grayscale)
+                    else -> stringResource(R.string.settings_background_artist)
+                }
+                Text(
+                    text = "${stringResource(R.string.menu_background_prefix)}: $backgroundLabel",
+                    color = Color.White,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(if (highlightedIndex == backgroundRowIndex) Color.White.copy(alpha = 0.3f) else Color.Transparent)
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                )
+
                 Text(
                     text = stringResource(R.string.menu_settings),
                     color = Color.White,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(if (highlightedIndex == data.size) Color.White.copy(alpha = 0.3f) else Color.Transparent)
+                        .background(if (highlightedIndex == settingsRowIndex) Color.White.copy(alpha = 0.3f) else Color.Transparent)
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 )
             }

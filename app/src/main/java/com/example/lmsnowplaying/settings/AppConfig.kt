@@ -36,6 +36,7 @@ object AppConfig {
             jellyfinApiKey = stored.jellyfinApiKey.ifBlank { BuildConfig.JELLYFIN_API_KEY ?: "" },
             defaultPlayerName = stored.defaultPlayerName,
             defaultPlayerMac = stored.defaultPlayerMac,
+            backgroundStyle = stored.backgroundStyle,
         )
         return current
     }

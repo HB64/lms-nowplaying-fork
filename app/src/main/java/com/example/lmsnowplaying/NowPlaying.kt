@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.material.icons.outlined.SkipPrevious
 import androidx.compose.material3.LinearProgressIndicator
@@ -61,11 +62,13 @@ import com.commit451.coiltransformations.BlurTransformation
 import com.example.lmsnowplaying.composable.PlayPauseButton
 import com.example.lmsnowplaying.composable.PlayerSelector
 import com.example.lmsnowplaying.composable.QueueButton
+import com.example.lmsnowplaying.composable.Starfield
 import com.example.lmsnowplaying.helpers.HandleButton
 import com.example.lmsnowplaying.network.logitechmediaserver.BasicAuthInterceptor
 import com.example.lmsnowplaying.network.jellyfin.JellyfinApi
 import com.example.lmsnowplaying.network.logitechmediaserver.LMS
 import com.example.lmsnowplaying.settings.AppConfig
+import com.example.lmsnowplaying.settings.SettingsRepository
 import com.example.lmsnowplaying.settings.NavState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -137,35 +140,77 @@ fun PlayerScreen(){
                     val _portraitId = result[3]
                     val _albumName = result.getOrElse(4) { "" }
                     val _albumYear = result.getOrElse(5) { "" }
-                    if(_songName == "" || _songName == currentSong) return@launch
+                    val _artworkUrl = result.getOrElse(6) { "" }
+                    // Only skip re-fetching artwork for a song we've already
+                    // seen if we actually managed to resolve art for it last
+                    // time - otherwise a transient failure (e.g. the getSongInfo
+                    // call hiccuping during a library rescan) would leave the
+                    // cover/backdrop permanently blank until the next track,
+                    // since it would never be retried.
+                    if (_songName == "" || (_songName == currentSong && albumArtUrl.isNotEmpty())) return@launch
                     currentSong = _songName
                     songName = _songName
                     albumName = _albumName
                     albumYear = _albumYear
                     artistName = _artistName
                     println("Refreshing")
-                    if (_coverId == ""){
+                    if (_coverId == "" && _artworkUrl == ""){
+                        // No cover for this track at all - clear every art
+                        // field, not just the album art, otherwise the
+                        // backdrop keeps showing whatever the previous
+                        // track's artist image was.
                         albumArtUrl = ""
-                    }else{
+                        lmsArtUrl = ""
+                        artistDefaultArtUrl = ""
+                        jellyfinArtUrl = ""
+                    }else if (_coverId != "") {
                         albumArtUrl = "${AppConfig.current.lmsUrl}/music/$_coverId/cover.jpg"
                         artistDefaultArtUrl = "${AppConfig.current.lmsUrl}/music/$_coverId/cover.jpg"
 
-                        // Resolve both candidates. Lyrion's portraitId isn't a
-                        // reliable "has a real photo" signal (it can point at
-                        // Lyrion's own generic/no-photo artwork), so we always
-                        // also try Jellyfin; GetArtistArt tries Jellyfin first,
-                        // then Lyrion, then falls back to the blurred cover.
-                        lmsArtUrl = if (_portraitId != "") "${AppConfig.current.lmsUrl}/contributor/$_portraitId/image" else ""
+                        if (skipArtistBackdrop(_artistName)) {
+                            // User prefers the album cover, or this looks like
+                            // a multi-artist credit ("A / B", "A & B") - those
+                            // rarely have a real photo, so Lyrion/Jellyfin tend
+                            // to silently fall back to the album cover anyway,
+                            // which just gets repetitive across tracks.
+                            lmsArtUrl = ""
+                            jellyfinArtUrl = ""
+                        } else {
+                            // Resolve both candidates. Lyrion's portraitId isn't a
+                            // reliable "has a real photo" signal (it can point at
+                            // Lyrion's own generic/no-photo artwork), so we always
+                            // also try Jellyfin; GetArtistArt tries Jellyfin first,
+                            // then Lyrion, then falls back to the blurred cover.
+                            lmsArtUrl = if (_portraitId != "") "${AppConfig.current.lmsUrl}/contributor/$_portraitId/image" else ""
 
-                        var tempName = _artistName
-                        tempName = tempName.replace(" ", "%20").replace("&", "%26")
-                        jellyfinArtUrl = if(!_artistName.contains("[!\"#$%'()*+,-./:;\\\\<=>?@\\[\\]^_`{|}~]".toRegex())){
-                            "${AppConfig.current.jellyfinUrl}/Artists/$tempName/Images/Backdrop/0"
-                        }else{
-                            JellyfinApi.GetArtistUrl(_artistName) ?: ""
+                            var tempName = _artistName
+                            tempName = tempName.replace(" ", "%20").replace("&", "%26")
+                            jellyfinArtUrl = if(!_artistName.contains("[!\"#$%'()*+,-./:;\\\\<=>?@\\[\\]^_`{|}~]".toRegex())){
+                                "${AppConfig.current.jellyfinUrl}/Artists/$tempName/Images/Backdrop/0"
+                            }else{
+                                JellyfinApi.GetArtistUrl(_artistName) ?: ""
+                            }
                         }
 
                         println("DEBUG_ART artist=$_artistName lms=$lmsArtUrl jellyfin=$jellyfinArtUrl")
+                    }else{
+                        // Remote track (internet radio, Spotify/Tidal-style
+                        // plugin, etc.) with no local coverid, but the server
+                        // gave us a direct artwork_url for it - use that for
+                        // both the small cover and the backdrop fallback.
+                        albumArtUrl = _artworkUrl
+                        artistDefaultArtUrl = _artworkUrl
+                        lmsArtUrl = ""
+
+                        var tempName = _artistName
+                        tempName = tempName.replace(" ", "%20").replace("&", "%26")
+                        jellyfinArtUrl = if (!skipArtistBackdrop(_artistName) && _artistName != "" && !_artistName.contains("[!\"#$%'()*+,-./:;\\\\<=>?@\\[\\]^_`{|}~]".toRegex())){
+                            "${AppConfig.current.jellyfinUrl}/Artists/$tempName/Images/Backdrop/0"
+                        }else{
+                            ""
+                        }
+
+                        println("DEBUG_ART (remote) artist=$_artistName artwork=$_artworkUrl jellyfin=$jellyfinArtUrl")
                     }
                 }
 
@@ -388,6 +433,21 @@ fun PlayerScreen(){
 }
 
 
+// Whether the artist-photo backdrop lookup should be skipped for this
+// track: either the user prefers the album cover, or the artist string
+// looks like a multi-artist credit (e.g. "Pete Namlook / Tetsu Inoue",
+// "Kronos Quartet & Mogwai"). Those rarely have a real photo on Lyrion or
+// Jellyfin, which tend to silently fall back to the album cover anyway -
+// so we skip straight to that instead of making the lookup at all.
+private fun skipArtistBackdrop(artistName: String): Boolean {
+    val style = AppConfig.current.backgroundStyle
+    if (style == SettingsRepository.BACKGROUND_STYLE_ALBUM ||
+        style == SettingsRepository.BACKGROUND_STYLE_STARFIELD) {
+        return true
+    }
+    return artistName.contains("/") || artistName.contains("&")
+}
+
 fun formatDuration(seconds: Double): String {
     val totalSeconds = seconds.toInt().coerceAtLeast(0)
     val minutes = totalSeconds / 60
@@ -395,11 +455,33 @@ fun formatDuration(seconds: Double): String {
     return "%d:%02d".format(minutes, secs)
 }
 
+@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun GetAlbumArt(url: String){
 
     var _url by remember { mutableStateOf(url) }
     _url = url
+
+    // No coverid to work with at all (e.g. a stale pre-rescan queue entry,
+    // or a remote stream) - show a placeholder instead of an empty box so
+    // it's clear nothing is broken, there's just no art for this track.
+    if (_url.isBlank()) {
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth()
+                .background(Color.White.copy(alpha = 0.08f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.MusicNote,
+                contentDescription = "Album Art",
+                tint = Color.White.copy(alpha = 0.35f),
+                modifier = Modifier.size(64.dp)
+            )
+        }
+        return
+    }
 
     val imageLoaderLMS = ImageLoader.Builder(LocalContext.current)
         .okHttpClient {
@@ -426,6 +508,7 @@ fun GetAlbumArt(url: String){
     )
 }
 
+@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun GetArtistArt(
     jellyfinUrl: String,
@@ -443,9 +526,39 @@ fun GetArtistArt(
     _lmsUrl = lmsUrl
     _defaultUrl = defaultUrl
 
+    // Decorative "screensaver" style backdrop, chosen instead of any real
+    // artist/album artwork - skip all the image-loading logic below entirely.
+    if (AppConfig.current.backgroundStyle == SettingsRepository.BACKGROUND_STYLE_STARFIELD) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Starfield(modifier = Modifier.fillMaxSize())
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                PlayerSelector(_pn)
+                Spacer(modifier = Modifier.fillMaxWidth().weight(1f))
+                content()
+            }
+        }
+        return
+    }
+
     val contrast = 0.40f
     val brightness = -10f
-    val colorMatrix = floatArrayOf(
+    val grayscale = AppConfig.current.backgroundStyle == SettingsRepository.BACKGROUND_STYLE_ARTIST_GRAYSCALE
+    val colorMatrix = if (grayscale) {
+        // Luminance-weighted grayscale, with the same contrast/brightness
+        // dimming folded in so it matches the colored version's look.
+        val lr = 0.2126f * contrast
+        val lg = 0.7152f * contrast
+        val lb = 0.0722f * contrast
+        floatArrayOf(
+            lr, lg, lb, 0f, brightness,
+            lr, lg, lb, 0f, brightness,
+            lr, lg, lb, 0f, brightness,
+            0f, 0f, 0f, 1f, 0f
+        )
+    } else floatArrayOf(
         contrast, 0f, 0f, 0f, brightness,
         0f, contrast, 0f, 0f, brightness,
         0f, 0f, contrast, 0f, brightness,
@@ -485,6 +598,33 @@ fun GetArtistArt(
     // isn't available, and advances on a real load failure (via listener).
     val jellyfinAttempt = _jellyfinUrl.takeIf { it.isNotEmpty() && hasJellyfinToken }
     val lmsAttempt = _lmsUrl.takeIf { it.isNotEmpty() }
+
+    // Nothing at all to show for the backdrop (e.g. a stale pre-rescan
+    // queue entry, or a remote stream with no art) - render a plain dark
+    // background with a faint icon instead of trying to paint an empty URL.
+    if (jellyfinAttempt == null && lmsAttempt == null && _defaultUrl.isBlank()) {
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF1A1A1A))) {
+            Icon(
+                imageVector = Icons.Outlined.MusicNote,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.08f),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(200.dp)
+            )
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                PlayerSelector(_pn)
+                Spacer(modifier = Modifier.fillMaxWidth().weight(1f))
+                content()
+            }
+        }
+        return
+    }
 
     var tier by remember { mutableStateOf(0) }
     LaunchedEffect(_jellyfinUrl, _lmsUrl) { tier = 0 }

@@ -216,8 +216,13 @@ object LMS{
     }
 
     suspend fun update(playerMAC: String): List<String> {
-        return safeCall("update", listOf("", "", "", "", "", "")) {
-            val reqString = "{\"method\": \"slim.request\", \"params\": [\"$playerMAC\", [\"status\", \"-\",1]]}"
+        return safeCall("update", listOf("", "", "", "", "", "", "")) {
+            // "tags:acly4K" asks for artist/coverid/album/year plus "K"
+            // (artwork_url) directly on the status call. artwork_url is how
+            // remote sources - internet radio, Spotify/Tidal-style plugins -
+            // carry their own cover art; those tracks have no local coverid
+            // and no real library track_id to look up via songinfo at all.
+            val reqString = "{\"method\": \"slim.request\", \"params\": [\"$playerMAC\", [\"status\", \"-\",1,\"tags:acly4K\"]]}"
             val requestBody = reqString.toRequestBody("application/json".toMediaTypeOrNull())
             val res = lmsApi.getCurrentSong(requestBody)
             val jsonData: String? = res.body()?.string()
@@ -230,15 +235,29 @@ object LMS{
             var portraitId = ""
             var album = ""
             var year = ""
+            var artworkUrl = ""
 
             try {
                 val resultLoop = getObject.getJSONArray("playlist_loop")
                 val firstResult = resultLoop.getJSONObject(0)
                 title = firstResult.getString("title")
-                val id = firstResult.getString("id")
+                artist = firstResult.optString("artist", "")
+                coverid = firstResult.optString("coverid", "")
+                album = firstResult.optString("album", "")
+                year = firstResult.optString("year", "")
+                artworkUrl = firstResult.optString("artwork_url", "")
+                val id = firstResult.optString("id", "")
+                Log.w(TAG, "update: id=\"$id\" title=\"$title\" coverid=\"$coverid\" artwork_url=\"$artworkUrl\"")
 
-                if (id.first() != '-') {
-                    val res2 = getSongInfo(playerMAC, id.toInt())
+                // The extra songinfo lookup is only meaningful (and only
+                // valid to call) for a real library track - a plain,
+                // non-negative numeric id. Remote/stream ids aren't real
+                // track_ids and songinfo can't look them up; toIntOrNull()
+                // safely skips those instead of throwing on id.toInt().
+                val numericId = id.toIntOrNull()
+                if (numericId != null && numericId >= 0) {
+                    val res2 = getSongInfo(playerMAC, numericId)
+                    Log.w(TAG, "update: getSongInfo returned ${res2.length()} entries: $res2")
                     for (i in 0 until res2.length()) {
                         val item = res2.getJSONObject(i)
                         if (artist == "" && item.has("artist")) {
@@ -260,10 +279,11 @@ object LMS{
                 }
 
             } catch (e: JSONException) {
-                return@safeCall listOf(title, artist, coverid, portraitId, album, year)
+                Log.w(TAG, "update: parsing playlist_loop/songinfo failed: ${e.message}")
+                return@safeCall listOf(title, artist, coverid, portraitId, album, year, artworkUrl)
             }
 
-            listOf(title, artist, coverid, portraitId, album, year)
+            listOf(title, artist, coverid, portraitId, album, year, artworkUrl)
         }
     }
 

@@ -11,10 +11,16 @@
     <string name="settings_jellyfin_username_label">Username</string>
     <string name="settings_jellyfin_password_label">Password</string>
     <string name="settings_jellyfin_apikey_label">API key</string>
+    <string name="settings_background_section">Now Playing background</string>
+    <string name="settings_background_artist">Artist photo</string>
+    <string name="settings_background_album">Album cover (blurred)</string>
+    <string name="settings_background_starfield">Starfield</string>
+    <string name="settings_background_artist_grayscale">Artist photo (grayscale)</string>
     <string name="settings_save">Save</string>
     <string name="settings_save_and_start">Save and start</string>
     <string name="settings_cancel">Cancel</string>
     <string name="menu_settings">Settings</string>
+    <string name="menu_background_prefix">Background</string>
     <string name="now_playing_by_label">by</string>
     <string name="now_playing_from_label">from</string>
     <string name="now_playing_next_label">Next</string>

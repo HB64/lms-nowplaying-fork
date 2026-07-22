@@ -63,6 +63,7 @@ fun SettingsScreen(
     var jellyfinUsername by remember { mutableStateOf(initial.jellyfinUsername) }
     var jellyfinPassword by remember { mutableStateOf(initial.jellyfinPassword) }
     var jellyfinApiKey by remember { mutableStateOf(initial.jellyfinApiKey) }
+    var backgroundStyle by remember { mutableStateOf(initial.backgroundStyle) }
 
     MaterialTheme(colorScheme = darkColorScheme()) {
     Column(
@@ -134,6 +135,29 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
+        Text(
+            text = stringResource(R.string.settings_background_section),
+            color = Color.White,
+            style = MaterialTheme.typography.titleMedium
+        )
+        val backgroundOptions = listOf(
+            SettingsRepository.BACKGROUND_STYLE_ARTIST to stringResource(R.string.settings_background_artist),
+            SettingsRepository.BACKGROUND_STYLE_ARTIST_GRAYSCALE to stringResource(R.string.settings_background_artist_grayscale),
+            SettingsRepository.BACKGROUND_STYLE_ALBUM to stringResource(R.string.settings_background_album),
+            SettingsRepository.BACKGROUND_STYLE_STARFIELD to stringResource(R.string.settings_background_starfield),
+        )
+        backgroundOptions.chunked(2).forEach { rowOptions ->
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                rowOptions.forEach { (value, label) ->
+                    if (backgroundStyle == value) {
+                        Button(onClick = { }) { Text(label) }
+                    } else {
+                        OutlinedButton(onClick = { backgroundStyle = value }) { Text(label) }
+                    }
+                }
+            }
+        }
+
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.padding(top = 16.dp)
@@ -153,6 +177,7 @@ fun SettingsScreen(
                         // default player.
                         defaultPlayerName = initial.defaultPlayerName,
                         defaultPlayerMac = initial.defaultPlayerMac,
+                        backgroundStyle = backgroundStyle,
                     )
                     scope.launch {
                         withContext(Dispatchers.IO) {
