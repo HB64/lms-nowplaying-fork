@@ -13,6 +13,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -21,6 +22,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -64,6 +66,7 @@ fun SettingsScreen(
     var jellyfinPassword by remember { mutableStateOf(initial.jellyfinPassword) }
     var jellyfinApiKey by remember { mutableStateOf(initial.jellyfinApiKey) }
     var backgroundStyle by remember { mutableStateOf(initial.backgroundStyle) }
+    var standbyOnExit by remember { mutableStateOf(initial.standbyOnExit) }
 
     MaterialTheme(colorScheme = darkColorScheme()) {
     Column(
@@ -159,6 +162,21 @@ fun SettingsScreen(
         }
 
         Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+        ) {
+            Switch(
+                checked = standbyOnExit,
+                onCheckedChange = { standbyOnExit = it }
+            )
+            Text(
+                text = stringResource(R.string.settings_standby_on_exit_label),
+                color = Color.White
+            )
+        }
+
+        Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.padding(top = 16.dp)
         ) {
@@ -178,6 +196,7 @@ fun SettingsScreen(
                         defaultPlayerName = initial.defaultPlayerName,
                         defaultPlayerMac = initial.defaultPlayerMac,
                         backgroundStyle = backgroundStyle,
+                        standbyOnExit = standbyOnExit,
                     )
                     scope.launch {
                         withContext(Dispatchers.IO) {

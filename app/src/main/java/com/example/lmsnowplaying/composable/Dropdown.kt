@@ -113,10 +113,12 @@ fun MyUI() {
         // mirroring how the media-key handling already works reliably.
         if (expanded) {
             var highlightedIndex by remember { mutableStateOf(0) }
-            // +1 for the background-style row, +1 for the "Settings" entry.
-            val totalItems = data.size + 2
+            // +1 for the background-style row, +1 for the standby-on-exit
+            // row, +1 for the "Settings" entry.
+            val totalItems = data.size + 3
             val backgroundRowIndex = data.size
-            val settingsRowIndex = data.size + 1
+            val standbyRowIndex = data.size + 1
+            val settingsRowIndex = data.size + 2
             val menuFocusRequester = remember { FocusRequester() }
 
             // Which player (by mac) is remembered as the default, shown as a
@@ -128,6 +130,11 @@ fun MyUI() {
             // it doesn't require going all the way into the full Settings
             // screen (which is a real chore to navigate with a D-pad).
             var backgroundStyle by remember { mutableStateOf(AppConfig.current.backgroundStyle) }
+
+            // Quick toggle for whether the active player is put into standby
+            // when the app closes - same reasoning as the background-style
+            // toggle above.
+            var standbyOnExit by remember { mutableStateOf(AppConfig.current.standbyOnExit) }
 
             LaunchedEffect(Unit) {
                 menuFocusRequester.requestFocus()
@@ -174,6 +181,15 @@ fun MyUI() {
                                     }
                                     // Leave the menu open - this is a quick toggle
                                     // people may want to flip back and forth on.
+                                } else if (highlightedIndex == standbyRowIndex) {
+                                    val newValue = !standbyOnExit
+                                    standbyOnExit = newValue
+                                    CoroutineScope(Dispatchers.IO).launch {
+                                        val current = SettingsRepository.get(contextForToast)
+                                        SettingsRepository.save(contextForToast, current.copy(standbyOnExit = newValue))
+                                        AppConfig.load(contextForToast)
+                                    }
+                                    // Leave the menu open, same as the background toggle.
                                 } else {
                                     NavState.showSettings = true
                                     expanded = false
@@ -230,6 +246,19 @@ fun MyUI() {
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(if (highlightedIndex == backgroundRowIndex) Color.White.copy(alpha = 0.3f) else Color.Transparent)
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                )
+
+                val standbyLabel = if (standbyOnExit)
+                    stringResource(R.string.menu_standby_on)
+                else
+                    stringResource(R.string.menu_standby_off)
+                Text(
+                    text = "${stringResource(R.string.menu_standby_prefix)}: $standbyLabel",
+                    color = Color.White,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(if (highlightedIndex == standbyRowIndex) Color.White.copy(alpha = 0.3f) else Color.Transparent)
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 )
 

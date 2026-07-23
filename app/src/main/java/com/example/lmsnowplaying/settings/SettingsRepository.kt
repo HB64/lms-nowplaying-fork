@@ -28,6 +28,7 @@ object SettingsRepository {
     private val DEFAULT_PLAYER_NAME = stringPreferencesKey("default_player_name")
     private val DEFAULT_PLAYER_MAC = stringPreferencesKey("default_player_mac")
     private val BACKGROUND_STYLE = stringPreferencesKey("background_style")
+    private val STANDBY_ON_EXIT = booleanPreferencesKey("standby_on_exit")
 
     // Valid values for Settings.backgroundStyle.
     const val BACKGROUND_STYLE_ARTIST = "artist"
@@ -55,6 +56,10 @@ object SettingsRepository {
         // anyway (Lyrion/Jellyfin fall back to that when no real photo is
         // found), which can get repetitive.
         val backgroundStyle: String = BACKGROUND_STYLE_ARTIST,
+        // Whether the active player should be put into standby (paused +
+        // powered off) when the app closes or is left. Defaults to on,
+        // matching the app's original behavior.
+        val standbyOnExit: Boolean = true,
     )
 
     fun flow(context: Context): Flow<Settings> =
@@ -70,6 +75,7 @@ object SettingsRepository {
                 defaultPlayerName = prefs[DEFAULT_PLAYER_NAME] ?: "",
                 defaultPlayerMac = prefs[DEFAULT_PLAYER_MAC] ?: "",
                 backgroundStyle = prefs[BACKGROUND_STYLE] ?: BACKGROUND_STYLE_ARTIST,
+                standbyOnExit = prefs[STANDBY_ON_EXIT] ?: true,
             )
         }
 
@@ -89,6 +95,7 @@ object SettingsRepository {
             prefs[DEFAULT_PLAYER_NAME] = settings.defaultPlayerName
             prefs[DEFAULT_PLAYER_MAC] = settings.defaultPlayerMac
             prefs[BACKGROUND_STYLE] = settings.backgroundStyle
+            prefs[STANDBY_ON_EXIT] = settings.standbyOnExit
         }
     }
 

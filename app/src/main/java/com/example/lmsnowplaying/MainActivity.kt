@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -47,9 +48,11 @@ class MainActivity : ComponentActivity() {
                     // reach the player (e.g. a Boom) before the process
                     // dies - a fire-and-forget coroutine could get killed
                     // mid-request by the exitProcess() call right after.
-                    runBlocking(Dispatchers.IO) {
-                        LMS.playPause(false)
-                        LMS.power(false)
+                    if (AppConfig.current.standbyOnExit) {
+                        runBlocking(Dispatchers.IO) {
+                            LMS.playPause(false)
+                            LMS.power(false)
+                        }
                     }
                     this@MainActivity.finish()
                     exitProcess(0)
@@ -82,6 +85,14 @@ class MainActivity : ComponentActivity() {
                 }
                 "ready" -> {
                     if (NavState.showSettings) {
+                        // Reached via the options (⋮) menu on the Now Playing
+                        // screen, so a Back/Exit press here should return to
+                        // Now Playing rather than closing the app - without
+                        // this, it falls through to the top-level back
+                        // handler above, which exits the whole app.
+                        BackHandler(enabled = true) {
+                            NavState.showSettings = false
+                        }
                         SettingsScreen(
                             initial = AppConfig.current,
                             onSaved = {
@@ -146,9 +157,11 @@ class MainActivity : ComponentActivity() {
     // which is likely why it was unreliable.
     override fun onStop() {
         super.onStop()
-        runBlocking(Dispatchers.IO) {
-            LMS.playPause(false)
-            LMS.power(false)
+        if (AppConfig.current.standbyOnExit) {
+            runBlocking(Dispatchers.IO) {
+                LMS.playPause(false)
+                LMS.power(false)
+            }
         }
     }
 

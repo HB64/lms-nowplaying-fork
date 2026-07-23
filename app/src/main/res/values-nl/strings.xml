@@ -16,11 +16,15 @@
     <string name="settings_background_album">Albumhoes (geblurd)</string>
     <string name="settings_background_starfield">Sterrenhemel</string>
     <string name="settings_background_artist_grayscale">Artiestenfoto (zwart-wit)</string>
+    <string name="settings_standby_on_exit_label">Speler in stand-by zetten als de app afsluit</string>
     <string name="settings_save">Opslaan</string>
     <string name="settings_save_and_start">Opslaan en starten</string>
     <string name="settings_cancel">Annuleren</string>
     <string name="menu_settings">Instellingen</string>
     <string name="menu_background_prefix">Achtergrond</string>
+    <string name="menu_standby_prefix">Stand-by bij afsluiten</string>
+    <string name="menu_standby_on">Aan</string>
+    <string name="menu_standby_off">Uit</string>
     <string name="now_playing_by_label">door</string>
     <string name="now_playing_from_label">van</string>
     <string name="now_playing_next_label">Volgende</string>

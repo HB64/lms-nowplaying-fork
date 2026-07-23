@@ -37,6 +37,7 @@ object AppConfig {
             defaultPlayerName = stored.defaultPlayerName,
             defaultPlayerMac = stored.defaultPlayerMac,
             backgroundStyle = stored.backgroundStyle,
+            standbyOnExit = stored.standbyOnExit,
         )
         return current
     }
