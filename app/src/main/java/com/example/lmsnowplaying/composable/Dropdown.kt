@@ -114,11 +114,13 @@ fun MyUI() {
         if (expanded) {
             var highlightedIndex by remember { mutableStateOf(0) }
             // +1 for the background-style row, +1 for the standby-on-exit
-            // row, +1 for the "Settings" entry.
-            val totalItems = data.size + 3
+            // row, +1 for the smart-replace-plugin row, +1 for the
+            // "Settings" entry.
+            val totalItems = data.size + 4
             val backgroundRowIndex = data.size
             val standbyRowIndex = data.size + 1
-            val settingsRowIndex = data.size + 2
+            val smartReplaceRowIndex = data.size + 2
+            val settingsRowIndex = data.size + 3
             val menuFocusRequester = remember { FocusRequester() }
 
             // Which player (by mac) is remembered as the default, shown as a
@@ -135,6 +137,10 @@ fun MyUI() {
             // when the app closes - same reasoning as the background-style
             // toggle above.
             var standbyOnExit by remember { mutableStateOf(AppConfig.current.standbyOnExit) }
+
+            // Quick toggle for which plugin (if any) the "replace next
+            // track" button prefers - same reasoning as the toggles above.
+            var smartReplaceProvider by remember { mutableStateOf(AppConfig.current.smartReplaceProvider) }
 
             LaunchedEffect(Unit) {
                 menuFocusRequester.requestFocus()
@@ -190,6 +196,19 @@ fun MyUI() {
                                         AppConfig.load(contextForToast)
                                     }
                                     // Leave the menu open, same as the background toggle.
+                                } else if (highlightedIndex == smartReplaceRowIndex) {
+                                    val newProvider = when (smartReplaceProvider) {
+                                        SettingsRepository.SMART_REPLACE_SUGARCUBE -> SettingsRepository.SMART_REPLACE_RANDOMFLOW
+                                        SettingsRepository.SMART_REPLACE_RANDOMFLOW -> SettingsRepository.SMART_REPLACE_NONE
+                                        else -> SettingsRepository.SMART_REPLACE_SUGARCUBE
+                                    }
+                                    smartReplaceProvider = newProvider
+                                    CoroutineScope(Dispatchers.IO).launch {
+                                        val current = SettingsRepository.get(contextForToast)
+                                        SettingsRepository.save(contextForToast, current.copy(smartReplaceProvider = newProvider))
+                                        AppConfig.load(contextForToast)
+                                    }
+                                    // Leave the menu open, same as the other toggles.
                                 } else {
                                     NavState.showSettings = true
                                     expanded = false
@@ -259,6 +278,20 @@ fun MyUI() {
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(if (highlightedIndex == standbyRowIndex) Color.White.copy(alpha = 0.3f) else Color.Transparent)
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                )
+
+                val smartReplaceLabel = when (smartReplaceProvider) {
+                    SettingsRepository.SMART_REPLACE_RANDOMFLOW -> stringResource(R.string.settings_smart_replace_randomflow)
+                    SettingsRepository.SMART_REPLACE_NONE -> stringResource(R.string.settings_smart_replace_none)
+                    else -> stringResource(R.string.settings_smart_replace_sugarcube)
+                }
+                Text(
+                    text = "${stringResource(R.string.menu_smart_replace_prefix)}: $smartReplaceLabel",
+                    color = Color.White,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(if (highlightedIndex == smartReplaceRowIndex) Color.White.copy(alpha = 0.3f) else Color.Transparent)
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 )
 

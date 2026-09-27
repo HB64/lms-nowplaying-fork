@@ -38,6 +38,7 @@ object AppConfig {
             defaultPlayerMac = stored.defaultPlayerMac,
             backgroundStyle = stored.backgroundStyle,
             standbyOnExit = stored.standbyOnExit,
+            smartReplaceProvider = stored.smartReplaceProvider,
         )
         return current
     }

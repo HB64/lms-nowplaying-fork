@@ -67,6 +67,7 @@ fun SettingsScreen(
     var jellyfinApiKey by remember { mutableStateOf(initial.jellyfinApiKey) }
     var backgroundStyle by remember { mutableStateOf(initial.backgroundStyle) }
     var standbyOnExit by remember { mutableStateOf(initial.standbyOnExit) }
+    var smartReplaceProvider by remember { mutableStateOf(initial.smartReplaceProvider) }
 
     MaterialTheme(colorScheme = darkColorScheme()) {
     Column(
@@ -176,6 +177,27 @@ fun SettingsScreen(
             )
         }
 
+        Text(
+            text = stringResource(R.string.settings_smart_replace_section),
+            color = Color.White,
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+        val smartReplaceOptions = listOf(
+            SettingsRepository.SMART_REPLACE_SUGARCUBE to stringResource(R.string.settings_smart_replace_sugarcube),
+            SettingsRepository.SMART_REPLACE_RANDOMFLOW to stringResource(R.string.settings_smart_replace_randomflow),
+            SettingsRepository.SMART_REPLACE_NONE to stringResource(R.string.settings_smart_replace_none),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            smartReplaceOptions.forEach { (value, label) ->
+                if (smartReplaceProvider == value) {
+                    Button(onClick = { }) { Text(label) }
+                } else {
+                    OutlinedButton(onClick = { smartReplaceProvider = value }) { Text(label) }
+                }
+            }
+        }
+
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.padding(top = 16.dp)
@@ -197,6 +219,7 @@ fun SettingsScreen(
                         defaultPlayerMac = initial.defaultPlayerMac,
                         backgroundStyle = backgroundStyle,
                         standbyOnExit = standbyOnExit,
+                        smartReplaceProvider = smartReplaceProvider,
                     )
                     scope.launch {
                         withContext(Dispatchers.IO) {

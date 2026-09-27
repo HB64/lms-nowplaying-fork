@@ -33,8 +33,8 @@ import androidx.compose.ui.unit.sp
 import com.example.lmsnowplaying.R
 
 // One-time onboarding tip shown on the very first launch, pointing new users
-// at the SugarCube and Don't Stop The Music plugins - the "replace next
-// track" button works best with those installed, but is fully usable
+// at SugarCube/RandomFlow and Don't Stop The Music - the "replace next
+// track" button works best with one of those installed, but is fully usable
 // without them too.
 @Composable
 fun PluginTipDialog(onDismiss: () -> Unit) {

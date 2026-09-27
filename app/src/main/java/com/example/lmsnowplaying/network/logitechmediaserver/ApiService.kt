@@ -59,4 +59,7 @@ interface ApiService {
     @POST("jsonrpc.js")
     suspend fun randomPlay(@Body requestBody: RequestBody): Response<ResponseBody>
 
+    @POST("jsonrpc.js")
+    suspend fun pluginReplaceNext(@Body requestBody: RequestBody): Response<ResponseBody>
+
 }

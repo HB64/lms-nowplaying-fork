@@ -29,12 +29,20 @@ object SettingsRepository {
     private val DEFAULT_PLAYER_MAC = stringPreferencesKey("default_player_mac")
     private val BACKGROUND_STYLE = stringPreferencesKey("background_style")
     private val STANDBY_ON_EXIT = booleanPreferencesKey("standby_on_exit")
+    private val SMART_REPLACE_PROVIDER = stringPreferencesKey("smart_replace_provider")
 
     // Valid values for Settings.backgroundStyle.
     const val BACKGROUND_STYLE_ARTIST = "artist"
     const val BACKGROUND_STYLE_ALBUM = "album"
     const val BACKGROUND_STYLE_STARFIELD = "starfield"
     const val BACKGROUND_STYLE_ARTIST_GRAYSCALE = "artist_grayscale"
+
+    // Valid values for Settings.smartReplaceProvider - which plugin (if
+    // any) the "replace next track" button tries first, before falling
+    // through to Don't Stop The Music and then a plain random track.
+    const val SMART_REPLACE_SUGARCUBE = "sugarcube"
+    const val SMART_REPLACE_RANDOMFLOW = "randomflow"
+    const val SMART_REPLACE_NONE = "none"
 
     data class Settings(
         val lmsUrl: String = "",
@@ -60,6 +68,11 @@ object SettingsRepository {
         // powered off) when the app closes or is left. Defaults to on,
         // matching the app's original behavior.
         val standbyOnExit: Boolean = true,
+        // Which plugin the "replace next track" button prefers, since it
+        // can't reliably tell on its own whether SugarCube or RandomFlow is
+        // the one installed (or neither). Defaults to SugarCube, matching
+        // the app's original behavior.
+        val smartReplaceProvider: String = SMART_REPLACE_SUGARCUBE,
     )
 
     fun flow(context: Context): Flow<Settings> =
@@ -76,6 +89,7 @@ object SettingsRepository {
                 defaultPlayerMac = prefs[DEFAULT_PLAYER_MAC] ?: "",
                 backgroundStyle = prefs[BACKGROUND_STYLE] ?: BACKGROUND_STYLE_ARTIST,
                 standbyOnExit = prefs[STANDBY_ON_EXIT] ?: true,
+                smartReplaceProvider = prefs[SMART_REPLACE_PROVIDER] ?: SMART_REPLACE_SUGARCUBE,
             )
         }
 
@@ -96,6 +110,7 @@ object SettingsRepository {
             prefs[DEFAULT_PLAYER_MAC] = settings.defaultPlayerMac
             prefs[BACKGROUND_STYLE] = settings.backgroundStyle
             prefs[STANDBY_ON_EXIT] = settings.standbyOnExit
+            prefs[SMART_REPLACE_PROVIDER] = settings.smartReplaceProvider
         }
     }
 

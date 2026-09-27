@@ -27,9 +27,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 // Button next to the "next track" preview that replaces it - mirrors
-// SugarCube's own "Replace This Track" button: tries SugarCube's
-// music-similarity pick first, and silently falls back to a random library
-// track if SugarCube isn't installed/enabled or didn't change anything.
+// SugarCube's/RandomFlow's own "Replace This Track" button (whichever is
+// picked in Settings): tries that plugin's music-similarity pick first, and
+// silently falls back to a random library track if it isn't installed/
+// enabled or didn't change anything.
 @Composable
 fun QueueButton() {
 
@@ -46,8 +47,10 @@ fun QueueButton() {
                 val result = LMS.replaceNextSmart(mac)
                 val message = when (result) {
                     LMS.ReplaceResult.SUGARCUBE -> " Volgende vervangen via SugarCube"
+                    LMS.ReplaceResult.RANDOMFLOW -> " Volgende vervangen via RandomFlow"
                     LMS.ReplaceResult.DSTM -> " Volgende vervangen via Don't Stop The Music"
                     LMS.ReplaceResult.RANDOM -> " Volgende track vervangen"
+                    LMS.ReplaceResult.SKIPPED_QUEUE -> " Er staat een album/batch in de wachtrij, niet vervangen"
                 }
                 withContext(Dispatchers.Main) {
                     Toast.makeText(contextForToast, message, Toast.LENGTH_SHORT).show()

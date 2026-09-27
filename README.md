@@ -12,7 +12,7 @@ If you have a Jellyfin instance, you can provide the credentials to grab the bac
 - Runtime settings screen — configure your Lyrion (and optional Jellyfin) server directly in the app, no rebuild needed.
 - Remembers a default player (checkbox in the player menu) and auto-connects to it on startup, so a Harmony-launched activity is ready to go without picking a player by hand.
 - Shows a preview of the next track under the currently playing one.
-- "Replace next track" button that picks a new upcoming track: uses the SugarCube plugin's own replace action if available, otherwise a legitimate Don't Stop The Music trigger, and falls back to a random track from the same genre/artist if neither is installed.
+- "Replace next track" button that picks a new upcoming track: uses SugarCube's or RandomFlow's own replace action (your choice, in Settings), otherwise a legitimate Don't Stop The Music trigger, and falls back to a random track from the same genre/artist if none of those is available.
 - Correct standby/exit handling (via Back press or a Harmony activity's standby button), including waking self-powered or software players like Squeezelite — works great as a Squeezelite companion.
 - Resilient to network hiccups: a temporarily unreachable server/player (e.g. one that's still waking up) no longer crashes the app.
 

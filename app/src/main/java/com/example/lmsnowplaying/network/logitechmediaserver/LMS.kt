@@ -2,12 +2,11 @@ package com.example.lmsnowplaying.network.logitechmediaserver
 
 import android.util.Log
 import com.example.lmsnowplaying.settings.AppConfig
+import com.example.lmsnowplaying.settings.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
@@ -351,53 +350,48 @@ object LMS{
     }
 
     // Outcome of a "replace next track" attempt, used to give an accurate
-    // toast without needlessly calling out SugarCube to people who don't
+    // toast without needlessly calling out a plugin to people who don't
     // use it.
-    enum class ReplaceResult { SUGARCUBE, DSTM, RANDOM }
+    enum class ReplaceResult { SUGARCUBE, RANDOMFLOW, DSTM, RANDOM, SKIPPED_QUEUE }
 
-    // Result of attempting the SugarCube GET: whether the HTTP call itself
-    // succeeded, and (only meaningful if it did) whether the next track
-    // actually changed afterwards.
-    private data class SugarCubeAttempt(val httpOk: Boolean, val changed: Boolean)
+    // Outcome of a plugin's "replacenext" JSON-RPC call: whether the call
+    // itself succeeded, and (only meaningful if it did) whether the next
+    // track actually changed afterwards.
+    private data class PluginReplaceAttempt(val ok: Boolean, val changed: Boolean)
 
-    // Cached once per app run: is the SugarCube plugin actually reachable on
-    // this server? Null = not checked yet. Avoids repeatedly trying (and
-    // silently failing) the SugarCube call, and the associated delay, for
-    // people who simply don't have SugarCube installed.
-    private var sugarCubeAvailable: Boolean? = null
+    // Triggers SugarCube's or RandomFlow's own "replace next track" action
+    // via its JSON-RPC command - both plugins expose the identical
+    // ["<plugin>", "replacenext"] shape (only the plugin name differs), the
+    // same action their own "Replace This Track" button fires, so we get
+    // their music-similarity pick instead of a random track.
+    //
+    // Deliberately does NOT try to force the plugin's Chain/Auto Mix
+    // setting on first: on both plugins, enabling that switches Don't Stop
+    // The Music off as a side effect, and the app has no business silently
+    // flipping a standing player setting (and losing the user's DSTM setup)
+    // just because they tapped this button once. If the plugin silently
+    // declines "replacenext" because Chain/Auto Mix happens to be off (or
+    // the queue isn't in the exact shape it wants), that's simply reported
+    // as "no change" below, and the caller falls through to DSTM/random
+    // like any other no-op attempt.
+    private suspend fun replaceNextViaPlugin(mac: String, pluginCommand: String): PluginReplaceAttempt {
+        if (mac == "00:00:00:00:00:00") return PluginReplaceAttempt(ok = false, changed = false)
 
-    // Triggers the SugarCube plugin's own "Replace This Track" action for
-    // the next-queued track (the exact same GET its own button fires), so
-    // we get its music-similarity pick instead of a random track.
-    private suspend fun replaceNextViaSugarCube(mac: String): SugarCubeAttempt {
-        if (mac == "00:00:00:00:00:00") return SugarCubeAttempt(httpOk = false, changed = false)
-        if (sugarCubeAvailable == false) return SugarCubeAttempt(httpOk = false, changed = false)
-
-        return safeCall("replaceNextViaSugarCube", SugarCubeAttempt(httpOk = false, changed = false)) {
+        return safeCall("replaceNextViaPlugin($pluginCommand)", PluginReplaceAttempt(ok = false, changed = false)) {
             val before = getUpcoming(mac, 2).getOrNull(1)
 
-            val url = "${AppConfig.current.lmsUrl}/plugins/SugarCube/settings/quickplay.html?player=$mac&forcereplace=1"
-            val client = OkHttpClient.Builder()
-                .addInterceptor(BasicAuthInterceptor(AppConfig.current.lmsUsername, AppConfig.current.lmsPassword))
-                .build()
-            val request = Request.Builder().url(url).build()
+            val reqString = "{\"method\": \"slim.request\", \"params\": [\"$mac\", [\"$pluginCommand\", \"replacenext\"]]}"
+            val requestBody = reqString.toRequestBody("application/json".toMediaTypeOrNull())
+            lmsApi.pluginReplaceNext(requestBody)
 
-            val ok = try {
-                client.newCall(request).execute().use { it.isSuccessful }
-            } catch (e: Exception) {
-                false
-            }
-            sugarCubeAvailable = ok
-            if (!ok) return@safeCall SugarCubeAttempt(httpOk = false, changed = false)
-
-            // Give SugarCube a brief moment to actually update the playlist
-            // before we re-check - the GET returning doesn't guarantee the
-            // playlist change has landed yet.
+            // Give the plugin a brief moment to actually update the
+            // playlist before we re-check - the response returning doesn't
+            // guarantee the playlist change has landed yet.
             kotlinx.coroutines.delay(600)
 
             val after = getUpcoming(mac, 2).getOrNull(1)
             val changed = after != null && (after.title != before?.title || after.coverId != before.coverId)
-            SugarCubeAttempt(httpOk = true, changed = changed)
+            PluginReplaceAttempt(ok = true, changed = changed)
         }
     }
 
@@ -482,13 +476,25 @@ object LMS{
         }
     }
 
-    // Native LMS fallback for when SugarCube isn't installed/enabled, or
-    // didn't change anything: picks a random track, preferring the current
-    // track's genre first, then its artist, then finally anything in the
-    // library - and puts it in the "next" slot the same way replaceNext()
-    // does.
-    private suspend fun replaceNextWithRandom(mac: String) {
-        if (mac == "00:00:00:00:00:00") return
+    // Native LMS fallback for when the chosen plugin isn't installed/
+    // enabled, or didn't change anything: picks a random track, preferring
+    // the current track's genre first, then its artist, then finally
+    // anything in the library - and puts it in the "next" slot the same way
+    // replaceNext() does.
+    //
+    // Only does this if "next" is the last track queued - same reasoning as
+    // replaceNextViaDstm()'s tailLength check: if the user has an album or
+    // a deliberate batch of tracks queued up, silently swapping out the
+    // next one for something unrelated would break that sequence. SugarCube
+    // and RandomFlow both already refuse to act in that situation; this
+    // fallback needs the same guard, since it has no such judgment of its
+    // own otherwise.
+    private suspend fun replaceNextWithRandom(mac: String): Boolean {
+        if (mac == "00:00:00:00:00:00") return false
+
+        val queue = getUpcoming(mac, 3)
+        val tailLength = queue.size - 1
+        if (tailLength != 1) return false
 
         val (genreId, artistId) = getCurrentGenreArtist(mac)
 
@@ -498,22 +504,36 @@ object LMS{
 
         if (trackId != null) {
             replaceNext(mac, trackId)
+            return true
         }
+        return false
     }
 
-    // Tries SugarCube's own replace action first (music-similarity pick),
-    // then gives DSTM a legitimate chance to fill the gap via whichever
-    // provider is configured for this player, and only then falls back to
-    // a genuinely random library track - so the button never dead-ends,
-    // and people who don't use SugarCube/DSTM never see them mentioned.
+    // Tries the user's chosen smart-replace plugin first (music-similarity
+    // pick - SugarCube, RandomFlow, or neither, per Settings), then gives
+    // DSTM a legitimate chance to fill the gap via whichever provider is
+    // configured for this player, and only then falls back to a genuinely
+    // random library track - so the button never dead-ends, and people who
+    // don't use any of these never see them mentioned.
     suspend fun replaceNextSmart(mac: String): ReplaceResult {
-        val attempt = replaceNextViaSugarCube(mac)
-        if (attempt.changed) return ReplaceResult.SUGARCUBE
+        when (AppConfig.current.smartReplaceProvider) {
+            SettingsRepository.SMART_REPLACE_SUGARCUBE -> {
+                if (replaceNextViaPlugin(mac, "sugarcube").changed) return ReplaceResult.SUGARCUBE
+            }
+            SettingsRepository.SMART_REPLACE_RANDOMFLOW -> {
+                if (replaceNextViaPlugin(mac, "randomflow").changed) return ReplaceResult.RANDOMFLOW
+            }
+            else -> { /* SMART_REPLACE_NONE - skip straight to DSTM */ }
+        }
 
         if (replaceNextViaDstm(mac)) return ReplaceResult.DSTM
 
-        replaceNextWithRandom(mac)
-        return ReplaceResult.RANDOM
+        if (replaceNextWithRandom(mac)) return ReplaceResult.RANDOM
+
+        // Nothing replaced anything - most likely because there's an album
+        // or a deliberate batch queued up (more than just "next" left to
+        // play), which every tier above declines to disturb on purpose.
+        return ReplaceResult.SKIPPED_QUEUE
     }
 
     // --- Library browsing (artist -> album -> track), used to pick the
