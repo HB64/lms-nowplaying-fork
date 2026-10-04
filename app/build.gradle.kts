@@ -70,6 +70,7 @@ dependencies {
     implementation(libs.bundles.material3)
 
     implementation(libs.bundles.coil)
+    implementation("androidx.palette:palette-ktx:1.0.0")
 
     implementation(libs.runtime.livedata)
 

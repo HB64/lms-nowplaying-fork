@@ -3,6 +3,8 @@ package com.example.lmsnowplaying
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -32,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.paint
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -251,6 +254,13 @@ fun PlayerScreen(){
         }
     }
 
+    // Progress bar color follows the album cover's main color
+    var accentColor by remember { mutableStateOf(Color.White) }
+    LaunchedEffect(albumArtUrl) {
+        if (albumArtUrl.isBlank()) accentColor = Color.White
+    }
+    val animatedAccent by androidx.compose.animation.animateColorAsState(accentColor, label = "accent")
+
     Box(contentAlignment = Alignment.Center, modifier = Modifier
         .background(Color.Black)
         .fillMaxSize()) {
@@ -263,14 +273,16 @@ fun PlayerScreen(){
                 .fillMaxWidth()
                 .padding(horizontal = 80.dp)) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier
-                    .background(Color.Black)
-                    .size(240.dp)){
-                    GetAlbumArt(albumArtUrl)
+                    .size(240.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.Black)){
+                    GetAlbumArt(albumArtUrl, onColor = { accentColor = it })
                 }
                 Spacer(modifier = Modifier.size(24.dp))
                 Column(verticalArrangement = Arrangement.Center, modifier = Modifier.weight(1f)) {
                     Spacer(modifier = Modifier.size(35.dp))
                     Text(songName, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1,
+                        textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
                             .basicMarquee()
@@ -287,6 +299,7 @@ fun PlayerScreen(){
                             withStyle(SpanStyle(color = Color.White)) { append(artistName) }
                         },
                         maxLines = 1,
+                        textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
                             .basicMarquee()
@@ -302,47 +315,27 @@ fun PlayerScreen(){
                                 }
                             },
                             maxLines = 1,
+                            textAlign = TextAlign.Center,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .basicMarquee()
                         )
                     }
-                    Spacer(modifier = Modifier.size(12.dp))
-
-                    val progress = if (trackDuration > 0.0) {
-                        (elapsedTime / trackDuration).toFloat().coerceIn(0f, 1f)
-                    } else 0f
-
-                    LinearProgressIndicator(
-                        progress = progress,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(CircleShape),
-                        color = Color.White,
-                        trackColor = Color.White.copy(alpha = 0.3f),
-                    )
-                    Spacer(modifier = Modifier.size(6.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(formatDuration(elapsedTime), color = Color.White, fontSize = 12.sp)
-                        Text(formatDuration(trackDuration), color = Color.White, fontSize = 12.sp)
-                    }
-
                     if (nextTitle.isNotBlank()) {
                         Spacer(modifier = Modifier.size(16.dp))
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Box(contentAlignment = Alignment.Center, modifier = Modifier
-                                .background(Color.Black)
-                                .size(48.dp)) {
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.Black)) {
                                 GetAlbumArt(nextCoverUrl)
                             }
                             Spacer(modifier = Modifier.size(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
+                            Column(modifier = Modifier.weight(1f, fill = false)) {
                                 Text(
                                     stringResource(R.string.now_playing_next_label),
                                     color = Color.White.copy(alpha = 0.65f),
@@ -353,9 +346,7 @@ fun PlayerScreen(){
                                     color = Color.White,
                                     fontSize = 14.sp,
                                     maxLines = 1,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .basicMarquee()
+                                    modifier = Modifier.basicMarquee()
                                 )
                             }
                             Spacer(modifier = Modifier.size(8.dp))
@@ -366,6 +357,31 @@ fun PlayerScreen(){
             }
 
             Spacer(modifier = Modifier.size(24.dp))
+
+            val progress = if (trackDuration > 0.0) {
+                (elapsedTime / trackDuration).toFloat().coerceIn(0f, 1f)
+            } else 0f
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 80.dp)
+            ) {
+                Text(formatDuration(elapsedTime), color = Color.White, fontSize = 14.sp)
+                Spacer(modifier = Modifier.size(12.dp))
+                LinearProgressIndicator(
+                    progress = progress,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(CircleShape),
+                    color = animatedAccent,
+                    trackColor = Color.White.copy(alpha = 0.3f),
+                )
+                Spacer(modifier = Modifier.size(12.dp))
+                Text(formatDuration(trackDuration), color = Color.White, fontSize = 14.sp)
+            }
+
             Spacer(modifier = Modifier.size(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val prevInteractionSource = remember { MutableInteractionSource() }
@@ -474,7 +490,7 @@ fun formatDuration(seconds: Double): String {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun GetAlbumArt(url: String){
+fun GetAlbumArt(url: String, onColor: ((Color) -> Unit)? = null){
 
     var _url by remember { mutableStateOf(url) }
     _url = url
@@ -512,6 +528,7 @@ fun GetAlbumArt(url: String){
     val imageRequestLMS = ImageRequest.Builder(LocalContext.current)
         .data(_url)
         .crossfade(500)
+        .allowHardware(onColor == null)
         .build()
 
     AsyncImage(
@@ -522,6 +539,29 @@ fun GetAlbumArt(url: String){
         imageLoader = imageLoaderLMS,
         model = imageRequestLMS,
         contentDescription = "Album Art",
+        onSuccess = { state ->
+            if (onColor != null) {
+                val bitmap = (state.result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                if (bitmap != null) {
+                    androidx.palette.graphics.Palette.from(bitmap).maximumColorCount(16).generate { p ->
+                        val argb = p?.vibrantSwatch?.rgb
+                            ?: p?.lightVibrantSwatch?.rgb
+                            ?: p?.mutedSwatch?.rgb
+                            ?: p?.lightMutedSwatch?.rgb
+                            ?: p?.dominantSwatch?.rgb
+                        if (argb != null) {
+                            // Dull covers (grey/greenish): keep the hue but force a bright,
+                            // slightly saturated tone so the bar stays visible on a dark background
+                            val hsl = FloatArray(3)
+                            androidx.core.graphics.ColorUtils.colorToHSL(argb, hsl)
+                            hsl[1] = hsl[1].coerceAtLeast(0.45f)
+                            hsl[2] = hsl[2].coerceIn(0.6f, 0.8f)
+                            onColor(Color(androidx.core.graphics.ColorUtils.HSLToColor(hsl)))
+                        } else onColor(Color.White)
+                    }
+                }
+            }
+        },
     )
 }
 
@@ -667,7 +707,7 @@ fun GetArtistArt(
             .crossfade(500)
             .apply {
                 if (useBlur) {
-                    transformations(BlurTransformation(LocalContext.current, 25f, 1f))
+                    transformations(BlurTransformation(LocalContext.current, 25f, 3f))
                 }
             }
             .listener(onError = { _, _ ->
@@ -678,10 +718,21 @@ fun GetArtistArt(
     )
 
 
+    // Blurred album-cover background: zoom in extra so it looks like a soft color wash
+    val backgroundScale = if (useBlur) {
+        object : ContentScale {
+            override fun computeScaleFactor(srcSize: androidx.compose.ui.geometry.Size, dstSize: androidx.compose.ui.geometry.Size): androidx.compose.ui.layout.ScaleFactor {
+                val base = ContentScale.Crop.computeScaleFactor(srcSize, dstSize)
+                return androidx.compose.ui.layout.ScaleFactor(base.scaleX * 1.6f, base.scaleY * 1.6f)
+            }
+        }
+    } else ContentScale.Crop
+
     Column(modifier = Modifier
+        .clipToBounds()
         .paint(
             painter,
-            contentScale = ContentScale.Crop,
+            contentScale = backgroundScale,
             colorFilter = ColorFilter.colorMatrix(ColorMatrix(colorMatrix))
         ),horizontalAlignment = Alignment.CenterHorizontally){
 
