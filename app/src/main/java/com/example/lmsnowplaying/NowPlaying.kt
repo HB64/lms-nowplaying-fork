@@ -550,13 +550,30 @@ fun GetAlbumArt(url: String, onColor: ((Color) -> Unit)? = null){
                             ?: p?.lightMutedSwatch?.rgb
                             ?: p?.dominantSwatch?.rgb
                         if (argb != null) {
-                            // Dull covers (grey/greenish): keep the hue but force a bright,
-                            // slightly saturated tone so the bar stays visible on a dark background
-                            val hsl = FloatArray(3)
-                            androidx.core.graphics.ColorUtils.colorToHSL(argb, hsl)
-                            hsl[1] = hsl[1].coerceAtLeast(0.45f)
-                            hsl[2] = hsl[2].coerceIn(0.6f, 0.8f)
-                            onColor(Color(androidx.core.graphics.ColorUtils.HSLToColor(hsl)))
+                            // Same cover-color algorithm as Random Flow/SugarCube's own
+                            // Live page (tstIsGrey/tstRgb2Hsv/tstHsv2Rgb there, itself
+                            // matching Material Skin's own numbers): a grey/colorless
+                            // swatch falls back to Material's own default blue instead
+                            // of an arbitrary tint, and otherwise only the swatch's hue
+                            // survives - saturation is capped (never boosted) and value
+                            // is pinned to a fixed number, so every cover reads as the
+                            // same "family" of tone rather than whatever brightness the
+                            // source swatch happened to have. HSV (not HSL) on purpose,
+                            // to match those same two numbers (0.8 / 0.8235) exactly.
+                            val r = android.graphics.Color.red(argb)
+                            val g = android.graphics.Color.green(argb)
+                            val b = android.graphics.Color.blue(argb)
+                            val isGrey = Math.abs(r - g) < 8 && Math.abs(r - b) < 8 && Math.abs(g - b) < 8
+                            val finalColor = if (isGrey) {
+                                android.graphics.Color.rgb(25, 118, 210)
+                            } else {
+                                val hsv = FloatArray(3)
+                                android.graphics.Color.colorToHSV(argb, hsv)
+                                hsv[1] = hsv[1].coerceAtMost(0.8f)
+                                hsv[2] = 0.8235f
+                                android.graphics.Color.HSVToColor(hsv)
+                            }
+                            onColor(Color(finalColor))
                         } else onColor(Color.White)
                     }
                 }
