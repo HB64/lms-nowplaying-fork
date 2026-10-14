@@ -384,13 +384,21 @@ object LMS{
             val requestBody = reqString.toRequestBody("application/json".toMediaTypeOrNull())
             lmsApi.pluginReplaceNext(requestBody)
 
-            // Give the plugin a brief moment to actually update the
-            // playlist before we re-check - the response returning doesn't
-            // guarantee the playlist change has landed yet.
-            kotlinx.coroutines.delay(600)
-
-            val after = getUpcoming(mac, 2).getOrNull(1)
-            val changed = after != null && (after.title != before?.title || after.coverId != before.coverId)
+            // The plugin may need several seconds (e.g. a large MusicIP/
+            // SugarCube request), and the response returning doesn't
+            // guarantee the playlist change has landed yet. Poll for the
+            // change for up to ~8s; stop as soon as it shows up. If the
+            // plugin silently declined, this costs the full wait before
+            // falling through to the next tier.
+            var changed = false
+            for (i in 0 until 16) {
+                kotlinx.coroutines.delay(500)
+                val after = getUpcoming(mac, 2).getOrNull(1)
+                if (after != null && (after.title != before?.title || after.coverId != before?.coverId)) {
+                    changed = true
+                    break
+                }
+            }
             PluginReplaceAttempt(ok = true, changed = changed)
         }
     }
@@ -515,13 +523,24 @@ object LMS{
     // configured for this player, and only then falls back to a genuinely
     // random library track - so the button never dead-ends, and people who
     // don't use any of these never see them mentioned.
+    // Name of the chosen plugin if it was tried but changed nothing during
+    // the last replaceNextSmart() call (usually: its Auto Mix/Chain is off),
+    // so the UI can tell the user to check the plugin settings. Null otherwise.
+    @Volatile
+    var lastDeclinedPlugin: String? = null
+
     suspend fun replaceNextSmart(mac: String): ReplaceResult {
+        lastDeclinedPlugin = null
         when (AppConfig.current.smartReplaceProvider) {
             SettingsRepository.SMART_REPLACE_SUGARCUBE -> {
-                if (replaceNextViaPlugin(mac, "sugarcube").changed) return ReplaceResult.SUGARCUBE
+                val attempt = replaceNextViaPlugin(mac, "sugarcube")
+                if (attempt.changed) return ReplaceResult.SUGARCUBE
+                if (attempt.ok) lastDeclinedPlugin = "SugarCube"
             }
             SettingsRepository.SMART_REPLACE_RANDOMFLOW -> {
-                if (replaceNextViaPlugin(mac, "randomflow").changed) return ReplaceResult.RANDOMFLOW
+                val attempt = replaceNextViaPlugin(mac, "randomflow")
+                if (attempt.changed) return ReplaceResult.RANDOMFLOW
+                if (attempt.ok) lastDeclinedPlugin = "RandomFlow"
             }
             else -> { /* SMART_REPLACE_NONE - skip straight to DSTM */ }
         }

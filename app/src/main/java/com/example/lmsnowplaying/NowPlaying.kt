@@ -21,10 +21,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.MusicNote
-import androidx.compose.material.icons.outlined.SkipNext
-import androidx.compose.material.icons.outlined.SkipPrevious
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.TextButton
+import com.example.lmsnowplaying.composable.FocusIconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -42,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -261,7 +263,34 @@ fun PlayerScreen(){
     }
     val animatedAccent by androidx.compose.animation.animateColorAsState(accentColor, label = "accent")
 
+    // After a while without any remote input, D-pad focus returns to the
+    // play/pause button (unless the options menu is open).
+    val playFocusRequester = remember { FocusRequester() }
+    var lastKeyTime by remember { mutableStateOf(System.currentTimeMillis()) }
+    // Later (after 30s) the focus ring itself is hidden too, until the next key press.
+    var refocused by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            if (NavState.menuOpen) continue
+            val idle = System.currentTimeMillis() - lastKeyTime
+            if (idle > 15_000 && !refocused) {
+                try { playFocusRequester.requestFocus() } catch (_: Exception) { }
+                refocused = true
+            }
+            if (idle > 30_000) {
+                NavState.focusRingHidden = true
+            }
+        }
+    }
+
     Box(contentAlignment = Alignment.Center, modifier = Modifier
+        .onPreviewKeyEvent {
+            lastKeyTime = System.currentTimeMillis()
+            refocused = false
+            NavState.focusRingHidden = false
+            false
+        }
         .background(Color.Black)
         .fillMaxSize()) {
 
@@ -376,7 +405,8 @@ fun PlayerScreen(){
                         .weight(1f)
                         .clip(CircleShape),
                     color = animatedAccent,
-                    trackColor = Color.White.copy(alpha = 0.3f),
+                    // Lighter shade of the played-part color (red -> light red, blue -> light blue)
+                    trackColor = androidx.compose.ui.graphics.lerp(animatedAccent, Color.White, 0.55f).copy(alpha = 0.45f),
                 )
                 Spacer(modifier = Modifier.size(12.dp))
                 Text(formatDuration(trackDuration), color = Color.White, fontSize = 14.sp)
@@ -384,26 +414,17 @@ fun PlayerScreen(){
 
             Spacer(modifier = Modifier.size(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                val prevInteractionSource = remember { MutableInteractionSource() }
-                val prevFocused by prevInteractionSource.collectIsFocusedAsState()
-                TextButton(
+                FocusIconButton(
                     onClick = {
                         CoroutineScope(Dispatchers.IO).launch {
                             LMS.prev()
                         }
                     },
-                    interactionSource = prevInteractionSource,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(if (prevFocused) Color.White.copy(alpha = 0.3f) else Color.Transparent)
+                    size = 48.dp,
                 ) {
-                    Icon(modifier = Modifier.size(32.dp), tint = Color.White, imageVector = Icons.Outlined.SkipPrevious, contentDescription = "Previous")
+                    Icon(modifier = Modifier.size(32.dp), tint = Color.White, imageVector = Icons.Filled.SkipPrevious, contentDescription = "Previous")
                 }
                 Spacer(modifier = Modifier.size(32.dp))
-                val playInteractionSource = remember { MutableInteractionSource() }
-                val playFocused by playInteractionSource.collectIsFocusedAsState()
-                val playFocusRequester = remember { FocusRequester() }
-
                 // If a default player was already auto-selected on start,
                 // there's nothing to set up via the options menu - so put
                 // initial D-pad focus straight on the play button instead.
@@ -413,7 +434,9 @@ fun PlayerScreen(){
                     }
                 }
 
-                TextButton(
+                FocusIconButton(
+                    size = 60.dp,
+                    modifier = Modifier.focusRequester(playFocusRequester),
                     onClick = {
                         if (LMS.playerMac != "00:00:00:00:00:00") {
                             val newPlaying = !playing
@@ -430,30 +453,20 @@ fun PlayerScreen(){
                                 LMS.playPause(newPlaying)
                             }
                         }
-                    },
-                    interactionSource = playInteractionSource,
-                    modifier = Modifier
-                        .focusRequester(playFocusRequester)
-                        .clip(CircleShape)
-                        .background(if (playFocused) Color.White.copy(alpha = 0.3f) else Color.Transparent)
+                    }
                 ) {
                     PlayPauseButton(playing)
                 }
                 Spacer(modifier = Modifier.size(32.dp))
-                val nextInteractionSource = remember { MutableInteractionSource() }
-                val nextFocused by nextInteractionSource.collectIsFocusedAsState()
-                TextButton(
+                FocusIconButton(
                     onClick = {
                         CoroutineScope(Dispatchers.IO).launch {
                             LMS.next()
                         }
                     },
-                    interactionSource = nextInteractionSource,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(if (nextFocused) Color.White.copy(alpha = 0.3f) else Color.Transparent)
+                    size = 48.dp,
                 ) {
-                    Icon(modifier = Modifier.size(32.dp), tint = Color.White, imageVector = Icons.Outlined.SkipNext, contentDescription = "Next")
+                    Icon(modifier = Modifier.size(32.dp), tint = Color.White, imageVector = Icons.Filled.SkipNext, contentDescription = "Next")
                 }
             }
 
@@ -550,13 +563,30 @@ fun GetAlbumArt(url: String, onColor: ((Color) -> Unit)? = null){
                             ?: p?.lightMutedSwatch?.rgb
                             ?: p?.dominantSwatch?.rgb
                         if (argb != null) {
-                            // Dull covers (grey/greenish): keep the hue but force a bright,
-                            // slightly saturated tone so the bar stays visible on a dark background
-                            val hsl = FloatArray(3)
-                            androidx.core.graphics.ColorUtils.colorToHSL(argb, hsl)
-                            hsl[1] = hsl[1].coerceAtLeast(0.45f)
-                            hsl[2] = hsl[2].coerceIn(0.6f, 0.8f)
-                            onColor(Color(androidx.core.graphics.ColorUtils.HSLToColor(hsl)))
+                            // Same cover-color algorithm as Random Flow/SugarCube's own
+                            // Live page (tstIsGrey/tstRgb2Hsv/tstHsv2Rgb there, itself
+                            // matching Material Skin's own numbers): a grey/colorless
+                            // swatch falls back to Material's own default blue instead
+                            // of an arbitrary tint, and otherwise only the swatch's hue
+                            // survives - saturation is capped (never boosted) and value
+                            // is pinned to a fixed number, so every cover reads as the
+                            // same "family" of tone rather than whatever brightness the
+                            // source swatch happened to have. HSV (not HSL) on purpose,
+                            // to match those same two numbers (0.8 / 0.8235) exactly.
+                            val r = android.graphics.Color.red(argb)
+                            val g = android.graphics.Color.green(argb)
+                            val b = android.graphics.Color.blue(argb)
+                            val isGrey = Math.abs(r - g) < 8 && Math.abs(r - b) < 8 && Math.abs(g - b) < 8
+                            val finalColor = if (isGrey) {
+                                android.graphics.Color.rgb(25, 118, 210)
+                            } else {
+                                val hsv = FloatArray(3)
+                                android.graphics.Color.colorToHSV(argb, hsv)
+                                hsv[1] = hsv[1].coerceAtMost(0.8f)
+                                hsv[2] = 0.8235f
+                                android.graphics.Color.HSVToColor(hsv)
+                            }
+                            onColor(Color(finalColor))
                         } else onColor(Color.White)
                     }
                 }

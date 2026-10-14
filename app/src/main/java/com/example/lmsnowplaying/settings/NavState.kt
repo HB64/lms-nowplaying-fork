@@ -17,4 +17,12 @@ object NavState {
     // focus should land on the play button instead of the options (⋮) menu
     // - there's no need to open the menu when a player is already picked.
     var focusPlayButtonOnStart by mutableStateOf(false)
+
+    // True while the ⋮ options menu is open, so the idle "return focus to
+    // the play button" timer never pulls focus out from under it.
+    var menuOpen by mutableStateOf(false)
+
+    // True after a long stretch without remote input: the focus ring is
+    // hidden (focus itself stays put) until the next key press.
+    var focusRingHidden by mutableStateOf(false)
 }

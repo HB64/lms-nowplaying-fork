@@ -65,13 +65,14 @@ fun MyUI() {
     var expanded by remember {
         mutableStateOf(false)
     }
+    LaunchedEffect(expanded) {
+        com.example.lmsnowplaying.settings.NavState.menuOpen = expanded
+    }
 
     Box(
         contentAlignment = Alignment.TopEnd
     ) {
         // 3 vertical dots icon
-        val menuButtonInteractionSource = remember { MutableInteractionSource() }
-        val menuButtonFocused by menuButtonInteractionSource.collectIsFocusedAsState()
         val menuButtonFocusRequester = remember { FocusRequester() }
 
         // Give this button focus as soon as the screen appears, so the
@@ -85,17 +86,15 @@ fun MyUI() {
             }
         }
 
-        IconButton(
+        FocusIconButton(
             onClick = {
                 expanded = true
             },
-            interactionSource = menuButtonInteractionSource,
+            size = 30.dp,
             modifier = Modifier
                 .padding(top = 2.dp)
                 .focusRequester(menuButtonFocusRequester)
-                .clip(CircleShape)
-                .background(if (menuButtonFocused) Color.White.copy(alpha = 0.3f) else Color.Transparent)
-            ) {
+        ) {
             Icon(
                 imageVector = Icons.Default.MoreVert,
                 contentDescription = "Open Options",

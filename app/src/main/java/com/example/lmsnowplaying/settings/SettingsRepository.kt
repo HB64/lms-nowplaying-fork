@@ -72,7 +72,7 @@ object SettingsRepository {
         // can't reliably tell on its own whether SugarCube or RandomFlow is
         // the one installed (or neither). Defaults to SugarCube, matching
         // the app's original behavior.
-        val smartReplaceProvider: String = SMART_REPLACE_SUGARCUBE,
+        val smartReplaceProvider: String = SMART_REPLACE_NONE,
     )
 
     fun flow(context: Context): Flow<Settings> =
@@ -89,7 +89,7 @@ object SettingsRepository {
                 defaultPlayerMac = prefs[DEFAULT_PLAYER_MAC] ?: "",
                 backgroundStyle = prefs[BACKGROUND_STYLE] ?: BACKGROUND_STYLE_ARTIST,
                 standbyOnExit = prefs[STANDBY_ON_EXIT] ?: true,
-                smartReplaceProvider = prefs[SMART_REPLACE_PROVIDER] ?: SMART_REPLACE_SUGARCUBE,
+                smartReplaceProvider = prefs[SMART_REPLACE_PROVIDER] ?: SMART_REPLACE_NONE,
             )
         }
 

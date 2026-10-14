@@ -36,11 +36,11 @@ fun QueueButton() {
 
     val contextForToast = LocalContext.current.applicationContext
 
-    val buttonInteractionSource = remember { MutableInteractionSource() }
-    val buttonFocused by buttonInteractionSource.collectIsFocusedAsState()
     val buttonFocusRequester = remember { FocusRequester() }
 
-    IconButton(
+    FocusIconButton(
+        size = 30.dp,
+        modifier = Modifier.focusRequester(buttonFocusRequester),
         onClick = {
             val mac = LMS.playerMac
             CoroutineScope(Dispatchers.IO).launch {
@@ -52,16 +52,18 @@ fun QueueButton() {
                     LMS.ReplaceResult.RANDOM -> " Volgende track vervangen"
                     LMS.ReplaceResult.SKIPPED_QUEUE -> " Er staat een album/batch in de wachtrij, niet vervangen"
                 }
+                // The plugin chosen in LMSNP's settings didn't react: say so
+                // clearly (this replaces the normal message), since the usual
+                // cause is its Auto Mix/Chain being off in the plugin itself.
+                val declined = LMS.lastDeclinedPlugin
+                val finalMessage = if (declined != null) {
+                    " $declined is actief in LMSNP maar reageert niet. Controleer de plugin-instellingen!"
+                } else message
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(contextForToast, message, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(contextForToast, finalMessage, Toast.LENGTH_LONG).show()
                 }
             }
-        },
-        interactionSource = buttonInteractionSource,
-        modifier = Modifier
-            .focusRequester(buttonFocusRequester)
-            .clip(CircleShape)
-            .background(if (buttonFocused) Color.White.copy(alpha = 0.3f) else Color.Transparent)
+        }
     ) {
         Icon(
             imageVector = Icons.Default.Refresh,
