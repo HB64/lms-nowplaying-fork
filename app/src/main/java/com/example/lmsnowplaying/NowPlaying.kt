@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.LinearProgressIndicator
@@ -64,6 +65,7 @@ import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import coil.util.DebugLogger
 import com.commit451.coiltransformations.BlurTransformation
+import com.example.lmsnowplaying.composable.BrowseScreen
 import com.example.lmsnowplaying.composable.PlayPauseButton
 import com.example.lmsnowplaying.composable.PlayerSelector
 import com.example.lmsnowplaying.composable.QueueButton
@@ -272,7 +274,7 @@ fun PlayerScreen(){
     LaunchedEffect(Unit) {
         while (true) {
             delay(1000)
-            if (NavState.menuOpen) continue
+            if (NavState.menuOpen || NavState.showBrowse) continue
             val idle = System.currentTimeMillis() - lastKeyTime
             if (idle > 15_000 && !refocused) {
                 try { playFocusRequester.requestFocus() } catch (_: Exception) { }
@@ -472,6 +474,31 @@ fun PlayerScreen(){
 
             Spacer(modifier = Modifier.size(64.dp))
 
+        }
+
+        // Top-left: opens the library browser (like Material's menu button)
+        FocusIconButton(
+            onClick = { NavState.showBrowse = true },
+            size = 40.dp,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 80.dp, top = 17.dp)
+        ) {
+            Icon(
+                modifier = Modifier.size(24.dp),
+                tint = Color.LightGray,
+                imageVector = Icons.Filled.Menu,
+                contentDescription = "Browse library",
+            )
+        }
+
+        // The browse panel itself, floating over Now Playing
+        if (NavState.showBrowse) {
+            Box(modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 80.dp, top = 48.dp)) {
+                BrowseScreen()
+            }
         }
 
     }

@@ -22,6 +22,10 @@ object NavState {
     // the play button" timer never pulls focus out from under it.
     var menuOpen by mutableStateOf(false)
 
+    // True while the library browse screen (opened from the top-left button
+    // on Now Playing) is showing.
+    var showBrowse by mutableStateOf(false)
+
     // True after a long stretch without remote input: the focus ring is
     // hidden (focus itself stays put) until the next key press.
     var focusRingHidden by mutableStateOf(false)

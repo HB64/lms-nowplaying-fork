@@ -28,6 +28,16 @@ data class QueueTrack(
 data class BrowseItem(
     val id: String,
     val name: String,
+    // For albums: id of a track whose cover represents the album (used for
+    // thumbnails); empty when unknown.
+    val artworkId: String = "",
+)
+
+// Result of a library search: matching artists, albums and tracks.
+data class SearchResults(
+    val artists: List<BrowseItem> = emptyList(),
+    val albums: List<BrowseItem> = emptyList(),
+    val tracks: List<BrowseTrack> = emptyList(),
 )
 
 // A track found while browsing an album, used to pick a replacement for
@@ -36,6 +46,8 @@ data class BrowseTrack(
     val id: String,
     val title: String,
     val trackNum: Int,
+    // Cover id for thumbnails; empty when unknown.
+    val coverId: String = "",
 )
 
 object LMS{
@@ -331,6 +343,27 @@ object LMS{
     // Replaces whatever is currently queued up as the "next" track with a
     // newly chosen one: removes the old next-in-queue entry (if any), then
     // inserts the chosen track right after the currently playing one.
+    // Plays or queues a whole album or a single track on the current player:
+    //   cmd "load"   - replace the queue and start playing
+    //   cmd "insert" - put it right after the current track
+    //   cmd "add"    - append it to the end of the queue
+    // Pass either albumId or trackId.
+    suspend fun playlistControl(cmd: String, albumId: String? = null, trackId: String? = null): Boolean {
+        if (playerMac == "00:00:00:00:00:00") return false
+        val target = when {
+            albumId != null -> "album_id:$albumId"
+            trackId != null -> "track_id:$trackId"
+            else -> return false
+        }
+        return safeCall("playlistControl($cmd)", false) {
+            if (cmd == "load") power(true)
+            val reqString = "{\"method\": \"slim.request\", \"params\": [\"$playerMac\", [\"playlistcontrol\",\"cmd:$cmd\",\"$target\"]]}"
+            val requestBody = reqString.toRequestBody("application/json".toMediaTypeOrNull())
+            lmsApi.playlistControl(requestBody)
+            true
+        }
+    }
+
     suspend fun replaceNext(mac: String, newTrackId: String) {
         if (mac == "00:00:00:00:00:00") return
         safeCall("replaceNext", Unit) {
@@ -558,6 +591,76 @@ object LMS{
     // --- Library browsing (artist -> album -> track), used to pick the
     // replacement for the "next" track. ---
 
+    // Library-wide search (artists, albums, tracks matching the text).
+    // Lyrion pages through one combined list (artists first, then albums,
+    // then tracks), so a small count would be filled by artists alone -
+    // ask for plenty so albums and tracks make it into the response too.
+    suspend fun search(term: String, count: Int = 300): SearchResults {
+        return safeCall("search", SearchResults()) {
+            val params = JSONArray().put("").put(
+                JSONArray().put("search").put(0).put(count).put("term:$term")
+            )
+            val reqString = JSONObject().put("method", "slim.request").put("params", params).toString()
+            val requestBody = reqString.toRequestBody("application/json".toMediaTypeOrNull())
+            val res = lmsApi.search(requestBody)
+            val jsonData: String? = res.body()?.string()
+            val result = JSONObject(jsonData).getJSONObject("result")
+
+            val artists = mutableListOf<BrowseItem>()
+            val loopA = result.optJSONArray("contributors_loop") ?: JSONArray()
+            for (i in 0 until loopA.length()) {
+                val o = loopA.getJSONObject(i)
+                artists.add(BrowseItem(o.optString("contributor_id"), o.optString("contributor")))
+            }
+            val albums = mutableListOf<BrowseItem>()
+            val loopB = result.optJSONArray("albums_loop") ?: JSONArray()
+            for (i in 0 until loopB.length()) {
+                val o = loopB.getJSONObject(i)
+                albums.add(BrowseItem(o.optString("album_id"), o.optString("album")))
+            }
+            val tracks = mutableListOf<BrowseTrack>()
+            val loopC = result.optJSONArray("tracks_loop") ?: JSONArray()
+            for (i in 0 until loopC.length()) {
+                val o = loopC.getJSONObject(i)
+                tracks.add(BrowseTrack(o.optString("track_id"), o.optString("track"), 0))
+            }
+
+            // Thumbnails: the search command carries no artwork info, so ask
+            // for it separately with the same term and match by id. If either
+            // lookup fails the rows simply have no picture.
+            val artworkByAlbum = try {
+                val loop = rpcLoop(listOf("albums", 0, count, "search:$term", "tags:lj"), "albums_loop")
+                (0 until loop.length()).associate {
+                    val o = loop.getJSONObject(it)
+                    o.optString("id") to o.optString("artwork_track_id")
+                }
+            } catch (e: Exception) { emptyMap() }
+            val coverByTrack = try {
+                val loop = rpcLoop(listOf("titles", 0, count, "search:$term", "tags:c"), "titles_loop")
+                (0 until loop.length()).associate {
+                    val o = loop.getJSONObject(it)
+                    o.optString("id") to o.optString("coverid")
+                }
+            } catch (e: Exception) { emptyMap() }
+
+            val albumsOut = albums.map { it.copy(artworkId = artworkByAlbum[it.id] ?: "") }
+            val tracksOut = tracks.map { it.copy(coverId = coverByTrack[it.id] ?: "") }
+            SearchResults(artists, albumsOut, tracksOut)
+        }
+    }
+
+    // Sends one server-wide (no player) JSON-RPC query and returns the named result loop.
+    private suspend fun rpcLoop(command: List<Any>, loopName: String): JSONArray {
+        val cmd = JSONArray()
+        command.forEach { cmd.put(it) }
+        val params = JSONArray().put("").put(cmd)
+        val reqString = JSONObject().put("method", "slim.request").put("params", params).toString()
+        val requestBody = reqString.toRequestBody("application/json".toMediaTypeOrNull())
+        val res = lmsApi.search(requestBody)
+        val jsonData: String? = res.body()?.string()
+        return JSONObject(jsonData).getJSONObject("result").optJSONArray(loopName) ?: JSONArray()
+    }
+
     suspend fun getArtists(count: Int = 500): List<BrowseItem> {
         return safeCall("getArtists", emptyList()) {
             val reqString = "{\"method\": \"slim.request\", \"params\": [\"\", [\"artists\", 0, $count]]}"
@@ -578,7 +681,7 @@ object LMS{
 
     suspend fun getAlbums(artistId: String, count: Int = 500): List<BrowseItem> {
         return safeCall("getAlbums", emptyList()) {
-            val reqString = "{\"method\": \"slim.request\", \"params\": [\"\", [\"albums\", 0, $count, \"artist_id:$artistId\", \"sort:yearalbum\"]]}"
+            val reqString = "{\"method\": \"slim.request\", \"params\": [\"\", [\"albums\", 0, $count, \"artist_id:$artistId\", \"sort:yearalbum\", \"tags:lj\"]]}"
             val requestBody = reqString.toRequestBody("application/json".toMediaTypeOrNull())
             val res = lmsApi.browseAlbums(requestBody)
             val jsonData: String? = res.body()?.string()
@@ -588,7 +691,7 @@ object LMS{
             val list = mutableListOf<BrowseItem>()
             for (i in 0 until loop.length()) {
                 val item = loop.getJSONObject(i)
-                list.add(BrowseItem(item.optString("id"), item.optString("album")))
+                list.add(BrowseItem(item.optString("id"), item.optString("album"), item.optString("artwork_track_id")))
             }
             list
         }
