@@ -12,13 +12,7 @@ interface ApiService {
     suspend fun getPlayer(@Body requestBody: RequestBody): Response<ResponseBody>
 
     @POST("jsonrpc.js")
-    suspend fun getPlayerFriendlyName(@Body requestBody: RequestBody): Response<ResponseBody>
-
-    @POST("jsonrpc.js")
     suspend fun getCurrentSong(@Body requestBody: RequestBody): Response<ResponseBody>
-
-    @POST("jsonrpc.js")
-    suspend fun getSongInfo(@Body requestBody: RequestBody): Response<ResponseBody>
 
     @POST("jsonrpc.js")
     suspend fun playPause(@Body requestBody: RequestBody): Response<ResponseBody>
@@ -58,6 +52,10 @@ interface ApiService {
 
     @POST("jsonrpc.js")
     suspend fun randomPlay(@Body requestBody: RequestBody): Response<ResponseBody>
+
+    // Generic JSON-RPC call for commands without a dedicated method above.
+    @POST("jsonrpc.js")
+    suspend fun rpc(@Body requestBody: RequestBody): Response<ResponseBody>
 
     @POST("jsonrpc.js")
     suspend fun search(@Body requestBody: RequestBody): Response<ResponseBody>

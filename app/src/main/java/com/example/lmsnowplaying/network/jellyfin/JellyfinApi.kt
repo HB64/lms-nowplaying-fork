@@ -25,7 +25,6 @@ object JellyfinApi {
     // effect without an app restart.
 
     private lateinit var ApiClient: ApiClient
-        private set
     var APITOKEN : String? = null
         private set
 

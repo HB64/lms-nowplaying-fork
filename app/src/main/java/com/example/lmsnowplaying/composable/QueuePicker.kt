@@ -1,20 +1,15 @@
 package com.example.lmsnowplaying.composable
 
+import com.example.lmsnowplaying.R
 import android.widget.Toast
-import androidx.compose.foundation.background
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -46,18 +41,20 @@ fun QueueButton() {
             CoroutineScope(Dispatchers.IO).launch {
                 val result = LMS.replaceNextSmart(mac)
                 val message = when (result) {
-                    LMS.ReplaceResult.SUGARCUBE -> " Volgende vervangen via SugarCube"
-                    LMS.ReplaceResult.RANDOMFLOW -> " Volgende vervangen via RandomFlow"
-                    LMS.ReplaceResult.DSTM -> " Volgende vervangen via Don't Stop The Music"
-                    LMS.ReplaceResult.RANDOM -> " Volgende track vervangen"
-                    LMS.ReplaceResult.SKIPPED_QUEUE -> " Er staat een album/batch in de wachtrij, niet vervangen"
+                    LMS.ReplaceResult.SUGARCUBE -> contextForToast.getString(R.string.replace_via, "SugarCube")
+                    LMS.ReplaceResult.MIPSTER -> contextForToast.getString(R.string.replace_via, "MIPster")
+                    LMS.ReplaceResult.RANDOMFLOW -> contextForToast.getString(R.string.replace_via, "Random Flow")
+                    LMS.ReplaceResult.DSTM -> contextForToast.getString(R.string.replace_via, "Don't Stop The Music")
+                    LMS.ReplaceResult.RANDOM -> contextForToast.getString(R.string.replace_random)
+                    LMS.ReplaceResult.NO_NEXT -> contextForToast.getString(R.string.replace_no_next)
+                    LMS.ReplaceResult.SKIPPED_QUEUE -> contextForToast.getString(R.string.replace_skipped_queue)
                 }
                 // The plugin chosen in LMSNP's settings didn't react: say so
                 // clearly (this replaces the normal message), since the usual
                 // cause is its Auto Mix/Chain being off in the plugin itself.
                 val declined = LMS.lastDeclinedPlugin
                 val finalMessage = if (declined != null) {
-                    " $declined is actief in LMSNP maar reageert niet. Controleer de plugin-instellingen!"
+                    contextForToast.getString(R.string.replace_declined, declined)
                 } else message
                 withContext(Dispatchers.Main) {
                     Toast.makeText(contextForToast, finalMessage, Toast.LENGTH_LONG).show()

@@ -1,8 +1,5 @@
 package com.example.lmsnowplaying
 
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.draw.clip
@@ -17,15 +14,26 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.filled.AllInclusive
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
+import androidx.compose.material.icons.filled.Shuffle
+import com.example.lmsnowplaying.composable.RepeatOffIcon
+import com.example.lmsnowplaying.composable.ShuffleOffIcon
+import com.example.lmsnowplaying.composable.ShuffleReleasesIcon
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.TextButton
 import com.example.lmsnowplaying.composable.FocusIconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -40,12 +48,14 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.paint
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
+import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -129,9 +139,41 @@ fun PlayerScreen(){
     var nextArtist by remember { mutableStateOf("") }
     var nextCoverUrl by remember { mutableStateOf("") }
 
+    // Repeat (0 off, 1 song, 2 queue), shuffle (0 off, 1 songs, 2 albums)
+    // and whether Don't Stop The Music is on for the current player.
+    var repeatMode by remember { mutableStateOf(0) }
+    var shuffleMode by remember { mutableStateOf(0) }
+    var dstmOn by remember { mutableStateOf(false) }
+
+    // MAC of the player whose info is currently on screen
+    var shownMac by remember { mutableStateOf("") }
+
+    // Vertical center (in pixels) of the player buttons row, so the Queue
+    // button can sit at the same height. -1 until it has been measured.
+    var controlsCenterYpx by remember { mutableStateOf(-1f) }
+
+    // False while a stream or a batch plays: the replace-next button is hidden
+    var canReplace by remember { mutableStateOf(true) }
+
+    // Auto Mix plugin that is on while a stream plays (shows the start-mix button)
+    var streamMixPlugin by remember { mutableStateOf<com.example.lmsnowplaying.network.logitechmediaserver.MixPlugin?>(null) }
+
     LaunchedEffect(Unit){
         while (true){
             if (LMS.playerMac != "00:00:00:00:00:00"){
+                CoroutineScope(Dispatchers.IO).launch {
+                    streamMixPlugin = LMS.getStreamMixPlugin()
+                    canReplace = LMS.canReplaceNext()
+                }
+
+                CoroutineScope(Dispatchers.IO).launch {
+                    LMS.getPlayModes()?.let {
+                        repeatMode = it.repeat
+                        shuffleMode = it.shuffle
+                        dstmOn = it.dstmProvider.isNotBlank()
+                    }
+                }
+
                 CoroutineScope(Dispatchers.IO).launch{
                     LMS.status()
                     playing = LMS.isPlaying
@@ -140,11 +182,31 @@ fun PlayerScreen(){
                 }
 
                 CoroutineScope(Dispatchers.IO).launch {
-                    val result = LMS.update(LMS.playerMac)
+                    val macAtStart = LMS.playerMac
+                    val result = LMS.update(macAtStart)
+                    // The user switched player while this request was in
+                    // flight: this answer belongs to the old player, drop it.
+                    if (macAtStart != LMS.playerMac) return@launch
                     val _songName = result[0]
                     val _artistName = result[1]
                     val _coverId = result[2]
                     val _portraitId = result[3]
+                    // Another player was picked: forget what the previous one
+                    // showed. Without this, a player that currently has no
+                    // track (stopped/off) never overwrote the old screen, so
+                    // it looked as if the switch hadn't happened.
+                    if (LMS.playerMac != shownMac) {
+                        shownMac = LMS.playerMac
+                        currentSong = ""
+                        songName = ""
+                        artistName = ""
+                        albumName = ""
+                        albumYear = ""
+                        albumArtUrl = ""
+                        lmsArtUrl = ""
+                        artistDefaultArtUrl = ""
+                        jellyfinArtUrl = ""
+                    }
                     val _albumName = result.getOrElse(4) { "" }
                     val _albumYear = result.getOrElse(5) { "" }
                     val _artworkUrl = result.getOrElse(6) { "" }
@@ -239,7 +301,9 @@ fun PlayerScreen(){
                 }
 
                 CoroutineScope(Dispatchers.IO).launch {
-                    val upcoming = LMS.getUpcoming(LMS.playerMac, 2)
+                    val macAtStart = LMS.playerMac
+                    val upcoming = LMS.getUpcoming(macAtStart, 2)
+                    if (macAtStart != LMS.playerMac) return@launch
                     val next = upcoming.getOrNull(1)
                     if (next != null) {
                         nextTitle = next.title
@@ -271,12 +335,27 @@ fun PlayerScreen(){
     var lastKeyTime by remember { mutableStateOf(System.currentTimeMillis()) }
     // Later (after 30s) the focus ring itself is hidden too, until the next key press.
     var refocused by remember { mutableStateOf(false) }
+    var playHasFocus by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         while (true) {
             delay(1000)
-            if (NavState.menuOpen || NavState.showBrowse) continue
+            if (NavState.menuOpen) continue
             val idle = System.currentTimeMillis() - lastKeyTime
-            if (idle > 15_000 && !refocused) {
+            // The browse (☰) panel closes by itself after the same idle time,
+            // and focus goes back to the play button.
+            if (NavState.showBrowse || NavState.showQueue) {
+                if (idle > 15_000) {
+                    NavState.showBrowse = false
+                    NavState.showQueue = false
+                    try { playFocusRequester.requestFocus() } catch (_: Exception) { }
+                    refocused = true
+                }
+                continue
+            }
+            // Keep asking until the play button really has focus: the layout
+            // can swap (new artwork) and throw the old button away with its
+            // focus, which used to leave it on e.g. the queue button.
+            if (idle > 15_000 && !playHasFocus) {
                 try { playFocusRequester.requestFocus() } catch (_: Exception) { }
                 refocused = true
             }
@@ -380,8 +459,10 @@ fun PlayerScreen(){
                                     modifier = Modifier.basicMarquee()
                                 )
                             }
-                            Spacer(modifier = Modifier.size(8.dp))
-                            QueueButton()
+                            if (canReplace) {
+                                Spacer(modifier = Modifier.size(8.dp))
+                                QueueButton()
+                            }
                         }
                     }
                 }
@@ -401,21 +482,152 @@ fun PlayerScreen(){
             ) {
                 Text(formatDuration(elapsedTime), color = Color.White, fontSize = 14.sp)
                 Spacer(modifier = Modifier.size(12.dp))
-                LinearProgressIndicator(
-                    progress = progress,
+                // Progress bar with a position dot. The track is a neutral
+                // translucent white (not a tint of the accent), so the bar
+                // stays readable on any blurred background; the dot has a
+                // soft dark rim so it shows up on light bars too.
+                androidx.compose.foundation.Canvas(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(CircleShape),
-                    color = animatedAccent,
-                    // Lighter shade of the played-part color (red -> light red, blue -> light blue)
-                    trackColor = androidx.compose.ui.graphics.lerp(animatedAccent, Color.White, 0.55f).copy(alpha = 0.45f),
-                )
+                        .height(16.dp)
+                ) {
+                    val barHeight = 4.dp.toPx()
+                    val dotRadius = 3.5.dp.toPx()
+                    val centerY = size.height / 2f
+                    val radius = androidx.compose.ui.geometry.CornerRadius(barHeight / 2f)
+                    drawRoundRect(
+                        color = Color.White.copy(alpha = 0.3f),
+                        topLeft = androidx.compose.ui.geometry.Offset(0f, centerY - barHeight / 2f),
+                        size = androidx.compose.ui.geometry.Size(size.width, barHeight),
+                        cornerRadius = radius,
+                    )
+                    val playedWidth = size.width * progress
+                    if (playedWidth > 0f) {
+                        drawRoundRect(
+                            color = animatedAccent,
+                            topLeft = androidx.compose.ui.geometry.Offset(0f, centerY - barHeight / 2f),
+                            size = androidx.compose.ui.geometry.Size(playedWidth, barHeight),
+                            cornerRadius = radius,
+                        )
+                    }
+                    val dotX = playedWidth.coerceIn(dotRadius, (size.width - dotRadius).coerceAtLeast(dotRadius))
+                    val dotCenter = androidx.compose.ui.geometry.Offset(dotX, centerY)
+                    drawCircle(color = Color.Black.copy(alpha = 0.35f), radius = dotRadius + 1.dp.toPx(), center = dotCenter)
+                    drawCircle(color = Color.White, radius = dotRadius, center = dotCenter)
+                }
                 Spacer(modifier = Modifier.size(12.dp))
                 Text(formatDuration(trackDuration), color = Color.White, fontSize = 14.sp)
             }
 
             Spacer(modifier = Modifier.size(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.onGloballyPositioned { c ->
+                    controlsCenterYpx = c.positionInRoot().y + c.size.height / 2f
+                }
+            ) {
+                val toastContext = LocalContext.current.applicationContext
+
+                // Start-mix button: only while a stream plays and an Auto Mix
+                // plugin is on (it doesn't start a mix by itself). The slot is
+                // always reserved (and mirrored on the right) so the row
+                // doesn't shift when the button shows up.
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp)) {
+                    val mixPlugin = streamMixPlugin
+                    if (mixPlugin != null) {
+                        FocusIconButton(
+                            onClick = {
+                                CoroutineScope(Dispatchers.IO).launch {
+                                    LMS.mixAction(mixPlugin, com.example.lmsnowplaying.network.logitechmediaserver.MixAction.START_MIX)
+                                    streamMixPlugin = null
+                                }
+                                Toast.makeText(toastContext, toastContext.getString(R.string.mix_started_toast, mixPlugin.label), Toast.LENGTH_SHORT).show()
+                            },
+                            size = 48.dp,
+                        ) {
+                            Icon(
+                                modifier = Modifier.size(26.dp),
+                                tint = Color.White,
+                                imageVector = when (mixPlugin) {
+                                    com.example.lmsnowplaying.network.logitechmediaserver.MixPlugin.SUGARCUBE -> com.example.lmsnowplaying.composable.SugarCubeIcon
+                                    com.example.lmsnowplaying.network.logitechmediaserver.MixPlugin.RANDOMFLOW -> com.example.lmsnowplaying.composable.RandomFlowIcon
+                                    else -> com.example.lmsnowplaying.composable.MipsterIcon
+                                },
+                                contentDescription = "Start ${mixPlugin.label} mix",
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.size(32.dp))
+
+                // Repeat: off -> queue -> single song -> Don't Stop The Music -> off.
+                // The last step only exists once a Don't Stop The Music
+                // provider has been seen for this player (it needs one to switch on).
+                FocusIconButton(
+                    onClick = {
+                        // An active repeat mode wins over Don't Stop The Music
+                        // (which doesn't kick in while repeating anyway)
+                        val current = when {
+                            repeatMode == 2 -> 1
+                            repeatMode == 1 -> 2
+                            dstmOn -> 3
+                            else -> 0
+                        }
+                        val next = (current + 1) % 4
+                        when (next) {
+                            0 -> { repeatMode = 0; dstmOn = false }
+                            1 -> { repeatMode = 2; dstmOn = false }
+                            2 -> { repeatMode = 1; dstmOn = false }
+                            else -> { repeatMode = 0; dstmOn = true }
+                        }
+                        Toast.makeText(
+                            toastContext,
+                            when (next) {
+                                1 -> toastContext.getString(R.string.repeat_queue)
+                                2 -> toastContext.getString(R.string.repeat_one)
+                                3 -> toastContext.getString(R.string.repeat_dstm)
+                                else -> toastContext.getString(R.string.repeat_off)
+                            },
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        CoroutineScope(Dispatchers.IO).launch {
+                            when (next) {
+                                0 -> { LMS.setRepeat(0); if (current == 3) LMS.setDstmProvider("0") }
+                                1 -> { LMS.setRepeat(2); if (current == 3) LMS.setDstmProvider("0") }
+                                2 -> { LMS.setRepeat(1); if (current == 3) LMS.setDstmProvider("0") }
+                                else -> {
+                                    LMS.setRepeat(0)
+                                    val provider = LMS.ensureDstmProvider()
+                                    if (provider.isBlank()) {
+                                        // Nothing to switch on: fall back to "no repeat"
+                                        repeatMode = 0
+                                        dstmOn = false
+                                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                            Toast.makeText(toastContext, toastContext.getString(R.string.no_dstm_source), Toast.LENGTH_SHORT).show()
+                                        }
+                                    } else LMS.setDstmProvider(provider)
+                                }
+                            }
+                        }
+                    },
+                    size = 48.dp,
+                ) {
+                    Icon(
+                        modifier = Modifier.size(26.dp),
+                        tint = if (!dstmOn && repeatMode == 0) Color.White.copy(alpha = 0.4f) else Color.White,
+                        // like Material: slashed loop = off, loop = queue,
+                        // loop with 1 = single song, infinity = Don't Stop The Music
+                        imageVector = when {
+                            repeatMode == 1 -> Icons.Filled.RepeatOne
+                            repeatMode == 2 -> Icons.Filled.Repeat
+                            dstmOn -> Icons.Filled.AllInclusive
+                            else -> RepeatOffIcon
+                        },
+                        contentDescription = "Repeat",
+                    )
+                }
+                Spacer(modifier = Modifier.size(32.dp))
+
                 FocusIconButton(
                     onClick = {
                         CoroutineScope(Dispatchers.IO).launch {
@@ -431,14 +643,17 @@ fun PlayerScreen(){
                 // there's nothing to set up via the options menu - so put
                 // initial D-pad focus straight on the play button instead.
                 LaunchedEffect(Unit) {
-                    if (NavState.focusPlayButtonOnStart) {
+                    if (NavState.focusPlayButtonOnStart && !NavState.startFocusDone) {
+                        NavState.startFocusDone = true
                         playFocusRequester.requestFocus()
                     }
                 }
 
                 FocusIconButton(
                     size = 60.dp,
-                    modifier = Modifier.focusRequester(playFocusRequester),
+                    modifier = Modifier
+                        .focusRequester(playFocusRequester)
+                        .onFocusChanged { playHasFocus = it.isFocused },
                     onClick = {
                         if (LMS.playerMac != "00:00:00:00:00:00") {
                             val newPlaying = !playing
@@ -470,6 +685,46 @@ fun PlayerScreen(){
                 ) {
                     Icon(modifier = Modifier.size(32.dp), tint = Color.White, imageVector = Icons.Filled.SkipNext, contentDescription = "Next")
                 }
+                Spacer(modifier = Modifier.size(32.dp))
+
+                // Shuffle: off -> songs -> albums (releases), like the Material skin
+                FocusIconButton(
+                    onClick = {
+                        val next = (shuffleMode + 1) % 3
+                        shuffleMode = next
+                        Toast.makeText(
+                            toastContext,
+                            when (next) {
+                                1 -> toastContext.getString(R.string.shuffle_songs)
+                                2 -> toastContext.getString(R.string.shuffle_releases)
+                                else -> toastContext.getString(R.string.shuffle_off)
+                            },
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        CoroutineScope(Dispatchers.IO).launch { LMS.setShuffle(next) }
+                    },
+                    size = 48.dp,
+                ) {
+                    Icon(
+                        modifier = Modifier.size(26.dp),
+                        tint = when (shuffleMode) {
+                            0 -> Color.White.copy(alpha = 0.4f)
+                            1 -> Color.White
+                            else -> animatedAccent
+                        },
+                        // like Material: off = parallel arrows, songs = crossed
+                        // arrows, releases = crossed arrows with a record
+                        imageVector = when (shuffleMode) {
+                            0 -> ShuffleOffIcon
+                            1 -> Icons.Filled.Shuffle
+                            else -> ShuffleReleasesIcon
+                        },
+                        contentDescription = "Shuffle",
+                    )
+                }
+                // Mirror of the start-mix slot on the left (keeps the row centered)
+                Spacer(modifier = Modifier.size(32.dp))
+                Spacer(modifier = Modifier.size(48.dp))
             }
 
             Spacer(modifier = Modifier.size(64.dp))
@@ -477,12 +732,27 @@ fun PlayerScreen(){
         }
 
         // Top-left: opens the library browser (like Material's menu button)
+        // When the panel is closed by the user (not by the idle timeout,
+        // which sends focus to the play button), focus returns to this button.
+        val browseButtonFocus = remember { FocusRequester() }
+        var browseWasOpen by remember { mutableStateOf(false) }
+        LaunchedEffect(NavState.showBrowse) {
+            if (browseWasOpen && !NavState.showBrowse &&
+                System.currentTimeMillis() - lastKeyTime < 15_000) {
+                try { browseButtonFocus.requestFocus() } catch (_: Exception) { }
+            }
+            browseWasOpen = NavState.showBrowse
+        }
         FocusIconButton(
-            onClick = { NavState.showBrowse = true },
+            onClick = {
+                NavState.showQueue = false
+                NavState.showBrowse = true
+            },
             size = 40.dp,
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(start = 80.dp, top = 17.dp)
+                .focusRequester(browseButtonFocus)
         ) {
             Icon(
                 modifier = Modifier.size(24.dp),
@@ -490,6 +760,42 @@ fun PlayerScreen(){
                 imageVector = Icons.Filled.Menu,
                 contentDescription = "Browse library",
             )
+        }
+
+        // Bottom-right: opens the play queue (like Material's queue button)
+        // In line with the player buttons (same height) and with the ⋮ menu
+        // above (same distance from the right edge).
+        val queueDensity = LocalDensity.current
+        val queueTopDp = if (controlsCenterYpx >= 0f)
+            with(queueDensity) { controlsCenterYpx.toDp() } - 20.dp
+        else 400.dp
+        FocusIconButton(
+            onClick = {
+                NavState.showBrowse = false
+                NavState.showQueue = !NavState.showQueue
+            },
+            size = 40.dp,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(y = queueTopDp)
+                .padding(end = 75.dp)
+        ) {
+            Icon(
+                modifier = Modifier.size(24.dp),
+                tint = Color.LightGray,
+                imageVector = Icons.Filled.QueueMusic,
+                contentDescription = "Queue",
+            )
+        }
+
+        // The queue panel, floating above the button
+        if (NavState.showQueue) {
+            val screenHeightDp = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
+            Box(modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 60.dp, bottom = (screenHeightDp - queueTopDp + 6.dp).coerceAtLeast(0.dp))) {
+                com.example.lmsnowplaying.composable.QueuePanel()
+            }
         }
 
         // The browse panel itself, floating over Now Playing
@@ -605,7 +911,9 @@ fun GetAlbumArt(url: String, onColor: ((Color) -> Unit)? = null){
                             val b = android.graphics.Color.blue(argb)
                             val isGrey = Math.abs(r - g) < 8 && Math.abs(r - b) < 8 && Math.abs(g - b) < 8
                             val finalColor = if (isGrey) {
-                                android.graphics.Color.rgb(25, 118, 210)
+                                // Grey/black covers: a light neutral bar reads better
+                                // on the blurred background than Material's blue.
+                                android.graphics.Color.rgb(235, 235, 235)
                             } else {
                                 val hsv = FloatArray(3)
                                 android.graphics.Color.colorToHSV(argb, hsv)

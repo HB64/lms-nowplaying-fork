@@ -125,6 +125,7 @@ class MainActivity : ComponentActivity() {
                         // needed - so start focus on the play button rather
                         // than the options (⋮) menu.
                         NavState.focusPlayButtonOnStart = AppConfig.current.defaultPlayerMac.isNotBlank()
+                        NavState.startFocusDone = false
 
                         var showPluginTip by remember { mutableStateOf(false) }
                         LaunchedEffect(Unit) {
@@ -155,6 +156,18 @@ class MainActivity : ComponentActivity() {
     // fire-and-forget coroutine risks getting cut off if the system
     // proceeds to sleep/suspend the process right after onStop() returns,
     // which is likely why it was unreliable.
+    // Old Compose versions can crash with "The ACTION_HOVER_EXIT event was
+    // not cleared" when a mouse/pointer hover reaches them. This is a TV
+    // app driven by a D-pad, so hover events are simply swallowed.
+    override fun dispatchGenericMotionEvent(ev: android.view.MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            android.view.MotionEvent.ACTION_HOVER_ENTER,
+            android.view.MotionEvent.ACTION_HOVER_MOVE,
+            android.view.MotionEvent.ACTION_HOVER_EXIT -> return true
+        }
+        return super.dispatchGenericMotionEvent(ev)
+    }
+
     override fun onStop() {
         super.onStop()
         if (AppConfig.current.standbyOnExit) {

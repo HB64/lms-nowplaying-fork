@@ -3,8 +3,6 @@ package com.example.lmsnowplaying.composable
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,12 +10,10 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,12 +27,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -65,15 +63,35 @@ fun MyUI() {
     var expanded by remember {
         mutableStateOf(false)
     }
+    val menuButtonFocusRequester = remember { FocusRequester() }
+    var wasExpanded by remember { mutableStateOf(false) }
+    var menuButtonHasFocus by remember { mutableStateOf(false) }
+    // NavState.menuClosedAt: when the menu closed last. The Enter press that
+    // closed it must not also "click" the ⋮ button that gets focus back and
+    // reopen the menu.
     LaunchedEffect(expanded) {
-        com.example.lmsnowplaying.settings.NavState.menuOpen = expanded
+        NavState.menuOpen = expanded
+        if (wasExpanded && !expanded) NavState.menuClosedAt = System.currentTimeMillis()
+        // Menu just closed: put focus back on the ⋮ button instead of
+        // leaving it nowhere (it stays there until the idle timeout or
+        // until the user moves to another button).
+        // The focus the removed menu leaves behind can be handed to another
+        // element a moment later, so ask a few times until the button has it.
+        if (wasExpanded && !expanded && !NavState.showSettings) {
+            repeat(8) {
+                if (!menuButtonHasFocus) {
+                    try { menuButtonFocusRequester.requestFocus() } catch (_: Exception) { }
+                }
+                kotlinx.coroutines.delay(100)
+            }
+        }
+        wasExpanded = expanded
     }
 
     Box(
         contentAlignment = Alignment.TopEnd
     ) {
         // 3 vertical dots icon
-        val menuButtonFocusRequester = remember { FocusRequester() }
 
         // Give this button focus as soon as the screen appears, so the
         // remote is immediately ready to open the settings/options menu
@@ -81,19 +99,33 @@ fun MyUI() {
         // player was already auto-selected, in which case the play button
         // takes initial focus instead (see MainActivity/NavState).
         LaunchedEffect(Unit) {
-            if (!NavState.focusPlayButtonOnStart) {
+            // This button was (re)created right after the menu closed - the
+            // screen swaps layout when the artwork changes, which throws the
+            // old button away together with its focus. Take focus back.
+            if (System.currentTimeMillis() - NavState.menuClosedAt < 3000 && !NavState.showSettings) {
+                repeat(10) {
+                    if (!menuButtonHasFocus) {
+                        try { menuButtonFocusRequester.requestFocus() } catch (_: Exception) { }
+                    }
+                    kotlinx.coroutines.delay(100)
+                }
+                return@LaunchedEffect
+            }
+            if (!NavState.focusPlayButtonOnStart && !NavState.startFocusDone) {
+                NavState.startFocusDone = true
                 menuButtonFocusRequester.requestFocus()
             }
         }
 
         FocusIconButton(
             onClick = {
-                expanded = true
+                if (System.currentTimeMillis() - NavState.menuClosedAt > 600) expanded = true
             },
             size = 30.dp,
             modifier = Modifier
                 .padding(top = 2.dp)
                 .focusRequester(menuButtonFocusRequester)
+                .onFocusChanged { menuButtonHasFocus = it.isFocused }
         ) {
             Icon(
                 imageVector = Icons.Default.MoreVert,
@@ -111,15 +143,17 @@ fun MyUI() {
         // highlight on this TV setup, so we track/drive it ourselves,
         // mirroring how the media-key handling already works reliably.
         if (expanded) {
-            var highlightedIndex by remember { mutableStateOf(0) }
+            // Start on the player that is currently selected
+            var highlightedIndex by remember {
+                mutableStateOf(data.indexOfFirst { it.second == LMS.playerMac }.coerceAtLeast(0))
+            }
+            var menuHasFocus by remember { mutableStateOf(false) }
             // +1 for the background-style row, +1 for the standby-on-exit
-            // row, +1 for the smart-replace-plugin row, +1 for the
-            // "Settings" entry.
-            val totalItems = data.size + 4
+            // row, +1 for the "Settings" entry.
+            val totalItems = data.size + 3
             val backgroundRowIndex = data.size
             val standbyRowIndex = data.size + 1
-            val smartReplaceRowIndex = data.size + 2
-            val settingsRowIndex = data.size + 3
+            val settingsRowIndex = data.size + 2
             val menuFocusRequester = remember { FocusRequester() }
 
             // Which player (by mac) is remembered as the default, shown as a
@@ -137,22 +171,34 @@ fun MyUI() {
             // toggle above.
             var standbyOnExit by remember { mutableStateOf(AppConfig.current.standbyOnExit) }
 
-            // Quick toggle for which plugin (if any) the "replace next
-            // track" button prefers - same reasoning as the toggles above.
-            var smartReplaceProvider by remember { mutableStateOf(AppConfig.current.smartReplaceProvider) }
-
+            // The first requestFocus can happen before the menu is ready for
+            // it, which left the menu open without key focus (D-pad did
+            // nothing). Keep asking until the menu really has focus.
             LaunchedEffect(Unit) {
-                menuFocusRequester.requestFocus()
+                while (true) {
+                    if (!menuHasFocus) {
+                        try { menuFocusRequester.requestFocus() } catch (_: Exception) { }
+                    }
+                    kotlinx.coroutines.delay(150)
+                }
             }
 
             Column(
                 modifier = Modifier
+                    // The menu floats over the screen: it must not add its
+                    // height to this Box, or the whole layout shifts down
+                    // while the menu is open.
+                    .layout { measurable, constraints ->
+                        val placeable = measurable.measure(constraints.copy(maxHeight = androidx.compose.ui.unit.Constraints.Infinity))
+                        layout(placeable.width, 0) { placeable.place(0, 0) }
+                    }
                     .offset(y = 28.dp)
                     .width(280.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(Color(0xE6222222))
                     .padding(vertical = 8.dp)
                     .focusRequester(menuFocusRequester)
+                    .onFocusChanged { menuHasFocus = it.isFocused }
                     .focusable()
                     .onKeyEvent { event ->
                         if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
@@ -195,19 +241,6 @@ fun MyUI() {
                                         AppConfig.load(contextForToast)
                                     }
                                     // Leave the menu open, same as the background toggle.
-                                } else if (highlightedIndex == smartReplaceRowIndex) {
-                                    val newProvider = when (smartReplaceProvider) {
-                                        SettingsRepository.SMART_REPLACE_SUGARCUBE -> SettingsRepository.SMART_REPLACE_RANDOMFLOW
-                                        SettingsRepository.SMART_REPLACE_RANDOMFLOW -> SettingsRepository.SMART_REPLACE_NONE
-                                        else -> SettingsRepository.SMART_REPLACE_SUGARCUBE
-                                    }
-                                    smartReplaceProvider = newProvider
-                                    CoroutineScope(Dispatchers.IO).launch {
-                                        val current = SettingsRepository.get(contextForToast)
-                                        SettingsRepository.save(contextForToast, current.copy(smartReplaceProvider = newProvider))
-                                        AppConfig.load(contextForToast)
-                                    }
-                                    // Leave the menu open, same as the other toggles.
                                 } else {
                                     NavState.showSettings = true
                                     expanded = false
@@ -277,20 +310,6 @@ fun MyUI() {
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(if (highlightedIndex == standbyRowIndex) Color.White.copy(alpha = 0.3f) else Color.Transparent)
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                )
-
-                val smartReplaceLabel = when (smartReplaceProvider) {
-                    SettingsRepository.SMART_REPLACE_RANDOMFLOW -> stringResource(R.string.settings_smart_replace_randomflow)
-                    SettingsRepository.SMART_REPLACE_NONE -> stringResource(R.string.settings_smart_replace_none)
-                    else -> stringResource(R.string.settings_smart_replace_sugarcube)
-                }
-                Text(
-                    text = "${stringResource(R.string.menu_smart_replace_prefix)}: $smartReplaceLabel",
-                    color = Color.White,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(if (highlightedIndex == smartReplaceRowIndex) Color.White.copy(alpha = 0.3f) else Color.Transparent)
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 )
 

@@ -37,11 +37,9 @@ object SettingsRepository {
     const val BACKGROUND_STYLE_STARFIELD = "starfield"
     const val BACKGROUND_STYLE_ARTIST_GRAYSCALE = "artist_grayscale"
 
-    // Valid values for Settings.smartReplaceProvider - which plugin (if
-    // any) the "replace next track" button tries first, before falling
-    // through to Don't Stop The Music and then a plain random track.
-    const val SMART_REPLACE_SUGARCUBE = "sugarcube"
-    const val SMART_REPLACE_RANDOMFLOW = "randomflow"
+    // Default for Settings.smartReplaceProvider. The replace button now
+    // follows whichever mix plugin is active; the setting is only kept so
+    // existing stored preferences stay readable.
     const val SMART_REPLACE_NONE = "none"
 
     data class Settings(
@@ -94,8 +92,6 @@ object SettingsRepository {
         }
 
     suspend fun get(context: Context): Settings = flow(context).first()
-
-    suspend fun isConfigured(context: Context): Boolean = get(context).lmsUrl.isNotBlank()
 
     suspend fun save(context: Context, settings: Settings) {
         context.dataStore.edit { prefs ->

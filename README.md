@@ -5,14 +5,19 @@ If you have a Jellyfin instance, you can provide the credentials to grab the bac
 
 | ![Now Playing screenshot](sample-images/nowplaying.png) | 
 |:--:| 
-| *Now Playing screen (always falls back to Lyrion's own album art if Jellyfin isn't configured)* |
+| *Now Playing screen (falls back to the blurred album cover if Jellyfin isn't configured)* |
 
 ## Features
 
 - Runtime settings screen — configure your Lyrion (and optional Jellyfin) server directly in the app, no rebuild needed.
 - Remembers a default player (checkbox in the player menu) and auto-connects to it on startup, so a Harmony-launched activity is ready to go without picking a player by hand.
+- Material-style Now Playing screen with a progress bar and position dot, play/pause, previous/next, shuffle (songs / releases) and repeat (queue / one song / Don't Stop The Music).
+- Library browser (☰): artists (with A–Z jump), albums, tracks, genres, music folder, search and Lyrion favorites, all with cover art. Play now, play next or add to the queue.
+- Queue panel: see what is queued, jump to a track or remove it.
+- Mix menu: switch the Auto Mix plugins SugarCube, MIPster, Random Flow and Lyrion's Random Mix on or off, and start a new mix or a batch. While a stream plays, a start-mix button on the Now Playing screen starts a mix right away.
 - Shows a preview of the next track under the currently playing one.
-- "Replace next track" button that picks a new upcoming track: uses SugarCube's or RandomFlow's own replace action (your choice, in Settings), otherwise a legitimate Don't Stop The Music trigger, and falls back to a random track from the same genre/artist if none of those is available.
+- "Replace next track" button that picks a new upcoming track: uses the active mix plugin's own replace action (SugarCube, MIPster or Random Flow), otherwise a legitimate Don't Stop The Music trigger, and falls back to a random track from the same genre/artist if none of those is available. Hidden while a stream or batch plays.
+- English and Dutch interface, following the language of the device.
 - Correct standby/exit handling (via Back press or a Harmony activity's standby button), including waking self-powered or software players like Squeezelite — works great as a Squeezelite companion.
 - Resilient to network hiccups: a temporarily unreachable server/player (e.g. one that's still waking up) no longer crashes the app.
 
